@@ -220,6 +220,9 @@ dump_cmd :: proc(w: Writer, cmd: Draw_Command) {
 		}
 	case Cmd_Text:
 		fmt.wprintf(w, "text(%v,%v) %q f=%v s=%v ", c.pos.x, c.pos.y, c.text, u32(c.font), c.size)
+		if c.spacing != 0 {
+			fmt.wprintf(w, "ls=%v ", c.spacing)
+		}
 		dump_color(w, c.color)
 	case Cmd_Image:
 		fmt.wprintf(w, "image(%v,%v,%v,%v)", c.rect.x, c.rect.y, c.rect.w, c.rect.h)
@@ -406,6 +409,7 @@ debug_panel :: proc(e: ^Emitter, n: ^Node, st: Stats) {
 				text = l,
 				font = ts.font,
 				size = ts.size,
+				spacing = ts.spacing,
 				color = th.text,
 			},
 		)

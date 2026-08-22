@@ -111,6 +111,7 @@ Context :: struct {
 }
 
 init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
+	check_backend(cfg.backend)
 	ctx^ = {}
 	ctx.allocator = allocator
 	ctx.cfg = cfg

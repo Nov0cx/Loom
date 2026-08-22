@@ -17,11 +17,12 @@ Cmd_Rect :: struct {
 }
 
 Cmd_Text :: struct {
-	pos:   Vec2,
-	text:  string,
-	font:  Font,
-	size:  f32,
-	color: Color,
+	pos:     Vec2,
+	text:    string,
+	font:    Font,
+	size:    f32,
+	spacing: f32,
+	color:   Color,
 }
 
 Cmd_Image :: struct {
@@ -503,7 +504,14 @@ emit_runs :: proc(e: ^Emitter, n: ^Node, clip: Rect, alpha: f32) {
 		}
 		emit_cmd(
 			e,
-			Cmd_Text{pos = r.pos, text = r.text, font = st.font, size = st.size, color = col},
+			Cmd_Text {
+				pos = r.pos,
+				text = r.text,
+				font = st.font,
+				size = st.size,
+				spacing = st.spacing,
+				color = col,
+			},
 		)
 	}
 }

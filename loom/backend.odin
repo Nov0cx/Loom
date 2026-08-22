@@ -1,6 +1,7 @@
 package loom
 
 import "base:runtime"
+import "core:fmt"
 
 Font_Metrics :: struct {
 	ascent, descent, line_gap: f32,
@@ -88,5 +89,25 @@ noop_backend :: proc() -> Backend {
 			return ""
 		},
 		clipboard_set = proc(text: string, user: rawptr) {},
+	}
+}
+
+@(private)
+check_backend :: proc(b: Backend, loc := #caller_location) {
+	missing := ""
+	switch {
+	case b.measure_run == nil:
+		missing = "measure_run"
+	case b.font_metrics == nil:
+		missing = "font_metrics"
+	case b.set_cursor == nil:
+		missing = "set_cursor"
+	case b.clipboard_get == nil:
+		missing = "clipboard_get"
+	case b.clipboard_set == nil:
+		missing = "clipboard_set"
+	}
+	if missing != "" {
+		panic(fmt.tprintf("loom: Config.backend.%s is nil", missing), loc)
 	}
 }
