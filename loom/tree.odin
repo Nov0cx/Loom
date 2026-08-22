@@ -16,6 +16,7 @@ Flag :: enum u16 {
 	Disabled,
 	No_Anim,
 	Text_Input,
+	Persist,
 }
 
 Flags :: bit_set[Flag;u16]
@@ -58,6 +59,7 @@ Node :: struct {
 	lay:                       ^Layout,
 	scroll_vel:                Vec2,
 	scroll_want:               Vec2,
+	persist:                   ^Persist,
 }
 
 begin :: proc(el: Element, loc := #caller_location) -> Interaction {
@@ -73,6 +75,10 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 	n.state += el.state
 	n.draw = nil
 	n.draw_user = nil
+
+	if .Persist in n.flags {
+		bind_persist(ctx, n, loc)
+	}
 
 	append(&ctx.open, Open_Entry{node = n, prev_seed = ctx.id_seed, id_depth = len(ctx.id_stack)})
 	ctx.id_seed = n.id
@@ -180,6 +186,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 	n.first_child = nil
 	n.next = nil
 	n.lay = nil
+	n.persist = nil
 	return n
 }
 

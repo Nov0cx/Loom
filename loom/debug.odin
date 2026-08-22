@@ -37,13 +37,7 @@ DEBUG_PADDING :: Color{147, 196, 125, 150}
 DEBUG_CONTENT :: Color{111, 168, 220, 150}
 
 @(private)
-DEBUG_PANEL_BG :: Color{12, 12, 14, 235}
-
-@(private)
-DEBUG_PANEL_LINE :: Color{90, 90, 110, 255}
-
-@(private)
-DEBUG_TEXT :: Color{228, 228, 235, 255}
+DEBUG_PANEL_ALPHA :: f32(0.94)
 
 Stats :: struct {
 	live_nodes:    int,
@@ -394,13 +388,14 @@ debug_panel :: proc(e: ^Emitter, n: ^Node, st: Stats) {
 		box.x = DEBUG_INSET
 	}
 
+	th := &ctx.theme
 	emit_cmd(
 		e,
 		Cmd_Rect {
 			rect = box,
-			paint = DEBUG_PANEL_BG,
+			paint = fade(th.overlay, DEBUG_PANEL_ALPHA),
 			radius = rad(6),
-			border = Border{width = all(1), color = DEBUG_PANEL_LINE},
+			border = Border{width = all(1), color = th.border},
 		},
 	)
 	for l, i in lines {
@@ -411,7 +406,7 @@ debug_panel :: proc(e: ^Emitter, n: ^Node, st: Stats) {
 				text = l,
 				font = ts.font,
 				size = ts.size,
-				color = DEBUG_TEXT,
+				color = th.text,
 			},
 		)
 	}

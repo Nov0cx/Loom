@@ -12,6 +12,7 @@ DEFAULT_SCROLL_SPEED :: 40
 DEFAULT_SCROLL_INERTIA :: f32(6)
 DEFAULT_SCROLL_DAMPING :: f32(0.0015)
 DEFAULT_SCROLL_TO_DUR :: f32(0.25)
+DEFAULT_SETTINGS_RATE :: f32(5)
 
 SCROLL_STOP :: f32(4)
 SCROLL_EPS :: f32(0.01)
@@ -50,6 +51,13 @@ Context :: struct {
 	text_hits:        int,
 	text_misses:      int,
 	text_measures:    int,
+	theme:            Theme,
+	themes:           map[string]Theme,
+	persist:          map[string]^Persist,
+	settings:         map[string]string,
+	handlers:         [dynamic]Settings_Handler,
+	settings_dirty:   bool,
+	settings_timer:   f32,
 
 	hovered_id:        Id,
 	scroll_id:         Id,
@@ -116,6 +124,10 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	if ctx.cfg.scroll_to_dur == 0 {
 		ctx.cfg.scroll_to_dur = DEFAULT_SCROLL_TO_DUR
 	}
+	if ctx.cfg.settings_rate == 0 {
+		ctx.cfg.settings_rate = DEFAULT_SETTINGS_RATE
+	}
+	ctx.theme = cfg.theme == {} ? DEFAULT_THEME : cfg.theme
 
 	if cfg.frame_allocator.procedure != nil {
 		ctx.frame_allocator = cfg.frame_allocator
@@ -131,6 +143,10 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	ctx.id_stack = make([dynamic]Id, 0, 16, allocator)
 	ctx.seen = make(map[Id]runtime.Source_Code_Location, 64, allocator)
 	ctx.text_cache = make(map[Text_Key]Text_Entry, 64, allocator)
+	ctx.themes = make(map[string]Theme, 4, allocator)
+	ctx.persist = make(map[string]^Persist, 16, allocator)
+	ctx.settings = make(map[string]string, 16, allocator)
+	ctx.handlers = make([dynamic]Settings_Handler, 0, 4, allocator)
 
 	globals_acquire(allocator)
 	make_current(ctx)
@@ -151,6 +167,9 @@ destroy :: proc(ctx: ^Context) {
 	}
 
 	free_text_cache(ctx)
+	free_themes(ctx)
+	free_persist(ctx)
+	free_settings(ctx)
 
 	delete(ctx.open)
 	delete(ctx.id_stack)
@@ -202,6 +221,9 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 	if el.props.h == nil {
 		el.props.h = Px(input.viewport.y)
 	}
+	if _, set := el.props.color.(Color); !set {
+		el.props.color = ctx.theme.text
+	}
 
 	root := touch(ctx, hash_string(0, ROOT_KEY), #location(begin_frame_ctx))
 	root.parent = nil
@@ -240,6 +262,9 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 
 	cascade(ctx)
 	layout(ctx)
+	if len(ctx.persist) > 0 {
+		sync_persist(ctx, ctx.root)
+	}
 	emit(ctx)
 	flush_cursor(ctx)
 

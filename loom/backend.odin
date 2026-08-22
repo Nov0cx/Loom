@@ -18,6 +18,8 @@ Backend :: struct {
 Config :: struct {
 	backend:           Backend,
 	root:              Props,
+	theme:             Theme,
+	settings_rate:     f32,
 	prune_after:       u32,
 	text_cache_frames: u32,
 	double_click:      f32,

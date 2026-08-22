@@ -3,7 +3,7 @@ package loom
 MAX_CLIP_DEPTH :: 32
 
 @(private)
-DEFAULT_TEXT_COLOR :: Color{255, 255, 255, 255}
+DEFAULT_TEXT_COLOR :: LOOM_DARK.text
 
 @(private)
 WHITE :: Color{255, 255, 255, 255}
@@ -453,7 +453,7 @@ emit_runs :: proc(e: ^Emitter, n: ^Node, clip: Rect, alpha: f32) {
 	}
 
 	p := &n.computed
-	col := DEFAULT_TEXT_COLOR
+	col := e.ctx.theme.text
 	if c, ok := p.color.?; ok {
 		col = c
 	}
