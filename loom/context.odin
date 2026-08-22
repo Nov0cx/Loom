@@ -85,6 +85,9 @@ Context :: struct {
 	cursor_last:       Cursor,
 	cursor_valid:      bool,
 	scrolling:         bool,
+	cmd_count:         int,
+	debug:             bool,
+	debug_rects:       bool,
 }
 
 init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
@@ -237,6 +240,7 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 
 	cascade(ctx)
 	layout(ctx)
+	emit(ctx)
 	flush_cursor(ctx)
 
 	prune(ctx)
