@@ -42,9 +42,7 @@ ui.end_frame()
 host renders Draw_List
 ```
 
-The one-frame lag is the deliberate trade: interaction is resolved against the geometry the node had
-last frame. It is invisible except on the first frame a node exists, where it reports no hover and no
-click.
+Downside is a one frame lag.
 
 ## Hot reload
 

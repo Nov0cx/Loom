@@ -14,6 +14,7 @@ Layout :: struct {
 	relaid:      bool,
 	laid:        bool,
 	cross_known: bool,
+	runs:        []Text_Run,
 }
 
 @(private)
@@ -532,6 +533,10 @@ place :: proc(ctx: ^Context, n: ^Node, origin: Vec2) {
 	inner := inner_edges(p)
 	box := Vec2{max(n.rect.w - inner.l - inner.r, 0), max(n.rect.h - inner.t - inner.b, 0)}
 	co := Vec2{n.rect.x + inner.l - n.scroll.x, n.rect.y + inner.t - n.scroll.y}
+
+	if n.el.text != "" {
+		n.lay.runs = build_runs(ctx, n, co, box)
+	}
 
 	content: Vec2
 	for c := n.first_child; c != nil; c = c.next {

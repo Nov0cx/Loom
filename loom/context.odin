@@ -6,6 +6,7 @@ import "core:mem/virtual"
 import "core:sync"
 
 DEFAULT_PRUNE_AFTER :: 2
+DEFAULT_TEXT_CACHE_FRAMES :: 60
 DEFAULT_DOUBLE_CLICK :: 0.3
 DEFAULT_SCROLL_SPEED :: 40
 DEFAULT_SCROLL_INERTIA :: f32(6)
@@ -45,6 +46,10 @@ Context :: struct {
 	state_blocks:     int,
 	animating:        bool,
 	seen:             map[Id]runtime.Source_Code_Location,
+	text_cache:       map[Text_Key]Text_Entry,
+	text_hits:        int,
+	text_misses:      int,
+	text_measures:    int,
 
 	hovered_id:        Id,
 	scroll_id:         Id,
@@ -90,6 +95,9 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	if ctx.cfg.prune_after == 0 {
 		ctx.cfg.prune_after = DEFAULT_PRUNE_AFTER
 	}
+	if ctx.cfg.text_cache_frames == 0 {
+		ctx.cfg.text_cache_frames = DEFAULT_TEXT_CACHE_FRAMES
+	}
 	if ctx.cfg.double_click == 0 {
 		ctx.cfg.double_click = DEFAULT_DOUBLE_CLICK
 	}
@@ -119,12 +127,14 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	ctx.open = make([dynamic]Open_Entry, 0, 32, allocator)
 	ctx.id_stack = make([dynamic]Id, 0, 16, allocator)
 	ctx.seen = make(map[Id]runtime.Source_Code_Location, 64, allocator)
+	ctx.text_cache = make(map[Text_Key]Text_Entry, 64, allocator)
 
 	globals_acquire(allocator)
 	make_current(ctx)
 }
 
 destroy :: proc(ctx: ^Context) {
+    assert(ctx != nil, "trying to destroy nil context")
 	for _, n in ctx.nodes {
 		free_states(ctx, n)
 		free(n, ctx.allocator)
@@ -136,6 +146,8 @@ destroy :: proc(ctx: ^Context) {
 		free(n, ctx.allocator)
 		n = next
 	}
+
+	free_text_cache(ctx)
 
 	delete(ctx.open)
 	delete(ctx.id_stack)
@@ -166,6 +178,9 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 	}
 	ctx.input = input
 	ctx.draw_list = {}
+	ctx.text_hits = 0
+	ctx.text_misses = 0
+	ctx.text_measures = 0
 
 	clear(&ctx.open)
 	clear(&ctx.id_stack)
@@ -225,6 +240,7 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 	flush_cursor(ctx)
 
 	prune(ctx)
+	evict_text(ctx)
 	return ctx.draw_list
 }
 

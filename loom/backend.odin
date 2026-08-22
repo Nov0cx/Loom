@@ -7,7 +7,7 @@ Font_Metrics :: struct {
 }
 
 Backend :: struct {
-	measure_text:  proc(font: Font, size: f32, text: string, max_w: f32, user: rawptr) -> Vec2,
+	measure_run:   proc(font: Font, size: f32, text: string, spacing: f32, user: rawptr) -> f32,
 	font_metrics:  proc(font: Font, size: f32, user: rawptr) -> Font_Metrics,
 	set_cursor:    proc(c: Cursor, user: rawptr),
 	clipboard_get: proc(user: rawptr) -> string,
@@ -19,6 +19,7 @@ Config :: struct {
 	backend:           Backend,
 	root:              Props,
 	prune_after:       u32,
+	text_cache_frames: u32,
 	double_click:      f32,
 	scroll_speed:      f32,
 	scroll_inertia:    f32,
@@ -30,8 +31,8 @@ Config :: struct {
 
 noop_backend :: proc() -> Backend {
 	return Backend {
-		measure_text = proc(font: Font, size: f32, text: string, max_w: f32, user: rawptr) -> Vec2 {
-			return {}
+		measure_run = proc(font: Font, size: f32, text: string, spacing: f32, user: rawptr) -> f32 {
+			return 0
 		},
 		font_metrics = proc(font: Font, size: f32, user: rawptr) -> Font_Metrics {
 			return {}

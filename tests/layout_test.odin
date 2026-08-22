@@ -1,6 +1,7 @@
 package tests
 
 import "core:testing"
+import "core:unicode/utf8"
 import ui "../loom"
 
 CHAR_W :: f32(10)
@@ -12,35 +13,11 @@ SCROLLER :: ui.Props {
 	overflow = {.Visible, .Scroll},
 }
 
-fake_measure :: proc(font: ui.Font, size: f32, text: string, max_w: f32, user: rawptr) -> ui.Vec2 {
-	line := size > 0 ? size : 16
-	if len(text) == 0 {
-		return {0, line}
+fake_run :: proc(font: ui.Font, size: f32, text: string, spacing: f32, user: rawptr) -> f32 {
+	if user != nil {
+		(^int)(user)^ += 1
 	}
-	if max_w <= 0 {
-		return {CHAR_W * f32(len(text)), line}
-	}
-
-	widest, cur: f32
-	lines := f32(1)
-	start := 0
-	for i := 0; i <= len(text); i += 1 {
-		if i < len(text) && text[i] != ' ' {
-			continue
-		}
-		word := CHAR_W * f32(i - start)
-		add := cur > 0 ? word + CHAR_W : word
-		if cur > 0 && cur + add > max_w {
-			widest = max(widest, cur)
-			lines += 1
-			cur = word
-		} else {
-			cur += add
-		}
-		start = i + 1
-	}
-	widest = max(widest, cur)
-	return {min(widest, max_w), lines * line}
+	return (CHAR_W + spacing) * f32(utf8.rune_count_in_string(text))
 }
 
 fake_metrics :: proc(font: ui.Font, size: f32, user: rawptr) -> ui.Font_Metrics {
@@ -50,8 +27,14 @@ fake_metrics :: proc(font: ui.Font, size: f32, user: rawptr) -> ui.Font_Metrics 
 
 fake_backend :: proc() -> ui.Backend {
 	b := ui.noop_backend()
-	b.measure_text = fake_measure
+	b.measure_run = fake_run
 	b.font_metrics = fake_metrics
+	return b
+}
+
+counting_backend :: proc(counter: ^int) -> ui.Backend {
+	b := fake_backend()
+	b.user = counter
 	return b
 }
 

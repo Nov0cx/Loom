@@ -77,6 +77,7 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 	return interaction(ctx, n)
 }
 
+// cant use caller loc because of @(deferred_none = end) on scope
 end :: proc() {
 	ctx := ctx_of()
 	assert(ctx.in_frame, "loom: end called outside a frame")

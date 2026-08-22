@@ -7,11 +7,15 @@ import "core:strings"
 Writer :: io.Writer
 
 Stats :: struct {
-	live_nodes:   int,
-	free_nodes:   int,
-	state_blocks: int,
-	frame_index:  u64,
-	open_depth:   int,
+	live_nodes:    int,
+	free_nodes:    int,
+	state_blocks:  int,
+	frame_index:   u64,
+	open_depth:    int,
+	text_entries:  int,
+	text_hits:     int,
+	text_misses:   int,
+	text_measures: int,
 }
 
 stats :: proc() -> Stats {
@@ -22,6 +26,10 @@ stats :: proc() -> Stats {
 		state_blocks = ctx.state_blocks,
 		frame_index = ctx.frame_index,
 		open_depth = len(ctx.open),
+		text_entries = len(ctx.text_cache),
+		text_hits = ctx.text_hits,
+		text_misses = ctx.text_misses,
+		text_measures = ctx.text_measures,
 	}
 }
 

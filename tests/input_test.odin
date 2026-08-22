@@ -23,7 +23,7 @@ probe_backend :: proc(p: ^Probe) -> ui.Backend {
 
 wired :: proc(ctx: ^ui.Context, cfg: ui.Config = {}, allocator := context.allocator) {
 	c := cfg
-	if c.backend.measure_text == nil {
+	if c.backend.measure_run == nil {
 		c.backend = fake_backend()
 	}
 	ui.init(ctx, c, allocator)

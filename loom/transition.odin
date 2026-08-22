@@ -153,7 +153,7 @@ prop_encode :: proc(p: ^Props, prop: Prop, val: Prop_Val) {
 	v := val.v
 	switch PROP_TABLE[prop].kind {
 	case .F32:
-		(^f32)(q)^ = v[0]
+		(^f32)(q)^ = prop == .Font_Size ? math.round(v[0]) : v[0]
 	case .Vec2:
 		(^Vec2)(q)^ = {v[0], v[1]}
 	case .Edges:
