@@ -60,6 +60,7 @@ Node :: struct {
 	scroll_vel:                Vec2,
 	scroll_want:               Vec2,
 	persist:                   ^Persist,
+	viewport:                  ^Viewport,
 }
 
 begin :: proc(el: Element, loc := #caller_location) -> Interaction {
@@ -187,6 +188,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 	n.next = nil
 	n.lay = nil
 	n.persist = nil
+	n.viewport = nil
 	return n
 }
 
@@ -194,6 +196,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 attach :: proc(ctx: ^Context, n: ^Node) {
 	e := &ctx.open[len(ctx.open) - 1]
 	n.parent = e.node
+	n.viewport = e.node.viewport
 	if e.last_child == nil {
 		e.node.first_child = n
 	} else {
@@ -239,6 +242,7 @@ interaction :: proc(ctx: ^Context, n: ^Node) -> Interaction {
 	it.released = ctx.released_id[.Left] == n.id
 	it.clicked = ctx.clicked_id == n.id
 	it.right_clicked = ctx.right_clicked_id == n.id
+	it.middle_clicked = ctx.middle_clicked_id == n.id
 	it.double_clicked = ctx.double_clicked_id == n.id
 
 	if ctx.drag_id == n.id {

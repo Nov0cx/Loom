@@ -79,6 +79,7 @@ clear_frame_results :: proc(ctx: ^Context) {
 	ctx.released_id = {}
 	ctx.clicked_id = 0
 	ctx.right_clicked_id = 0
+	ctx.middle_clicked_id = 0
 	ctx.double_clicked_id = 0
 	ctx.drag_delta = {}
 	ctx.wheel_id = {}
@@ -122,6 +123,7 @@ step_mouse :: proc(ctx: ^Context, hit: Id) {
 				case .Right:
 					ctx.right_clicked_id = hit
 				case .Middle:
+					ctx.middle_clicked_id = hit
 				}
 			}
 			ctx.press_id[b] = 0
@@ -304,6 +306,14 @@ apply_input_states :: proc(ctx: ^Context) {
 }
 
 @(private)
+pointer_order :: proc(ctx: ^Context) -> []Paint_Entry {
+	if v := ctx.pointer_viewport; v != nil {
+		return paint_order_viewport(ctx, v)
+	}
+	return paint_order(ctx, ctx.root)
+}
+
+@(private)
 recompute_states :: proc(ctx: ^Context) {
 	ctx.time += f64(ctx.input.dt)
 	forget_pruned(ctx)
@@ -320,7 +330,7 @@ recompute_states :: proc(ctx: ^Context) {
 		if ctx.capture_id != 0 {
 			hit = ctx.capture_id
 		} else {
-			hit, scroller = hit_test(ctx, paint_order(ctx, ctx.root), ctx.input.mouse)
+			hit, scroller = hit_test(ctx, pointer_order(ctx), ctx.input.mouse)
 		}
 		ctx.hovered_id = hit
 		ctx.scroll_id = scroller

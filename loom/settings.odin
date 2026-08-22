@@ -19,7 +19,11 @@ Persist :: struct {
 }
 
 settings_handler :: proc(h: Settings_Handler) {
-	ctx := ctx_of()
+	settings_handler_ctx(ctx_of(), h)
+}
+
+@(private)
+settings_handler_ctx :: proc(ctx: ^Context, h: Settings_Handler) {
 	assert(h.section != "", "loom: a settings handler needs a section name")
 	for &existing in ctx.handlers {
 		if existing.section == h.section {

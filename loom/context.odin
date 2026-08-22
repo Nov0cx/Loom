@@ -58,6 +58,16 @@ Context :: struct {
 	handlers:         [dynamic]Settings_Handler,
 	settings_dirty:   bool,
 	settings_timer:   f32,
+	docks:            map[string]^Dock_Space,
+	dock_order:       [dynamic]^Dock_Space,
+	dock_nodes:       map[Dock_Id]^Dock_Node,
+	dock_serial:      u64,
+	dock_drag:        Dock_Drag,
+	dock_actions:     [dynamic]Dock_Action,
+	dock_handler:     bool,
+	viewports:        [dynamic]^Viewport,
+	viewport_draws:   [dynamic]Viewport_Draw,
+	pointer_viewport: ^Viewport,
 
 	hovered_id:        Id,
 	scroll_id:         Id,
@@ -73,6 +83,7 @@ Context :: struct {
 	released_id:       [Mouse_Button]Id,
 	clicked_id:        Id,
 	right_clicked_id:  Id,
+	middle_clicked_id: Id,
 	double_clicked_id: Id,
 	activate_id:       Id,
 	drag_id:           Id,
@@ -148,9 +159,16 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	ctx.persist = make(map[string]^Persist, 16, allocator)
 	ctx.settings = make(map[string]string, 16, allocator)
 	ctx.handlers = make([dynamic]Settings_Handler, 0, 4, allocator)
+	ctx.docks = make(map[string]^Dock_Space, 4, allocator)
+	ctx.dock_order = make([dynamic]^Dock_Space, 0, 4, allocator)
+	ctx.dock_nodes = make(map[Dock_Id]^Dock_Node, 16, allocator)
+	ctx.dock_actions = make([dynamic]Dock_Action, 0, 4, allocator)
+	ctx.viewports = make([dynamic]^Viewport, 0, 4, allocator)
+	ctx.viewport_draws = make([dynamic]Viewport_Draw, 0, 4, allocator)
 
 	globals_acquire(allocator)
 	make_current(ctx)
+	dock_register_handler(ctx)
 }
 
 destroy :: proc(ctx: ^Context) {
@@ -171,6 +189,8 @@ destroy :: proc(ctx: ^Context) {
 	free_themes(ctx)
 	free_persist(ctx)
 	free_settings(ctx)
+	free_viewports(ctx)
+	free_docks(ctx)
 
 	delete(ctx.open)
 	delete(ctx.id_stack)
@@ -210,7 +230,10 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 	clear(&ctx.id_stack)
 	clear(&ctx.seen)
 	ctx.id_seed = 0
+	clear(&ctx.dock_order)
+	clear(&ctx.viewport_draws)
 
+	poll_viewports(ctx)
 	recompute_states(ctx)
 
 	el := Element {
@@ -262,12 +285,14 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 	ctx.id_seed = 0
 	ctx.in_frame = false
 
+	settle_docks(ctx)
 	cascade(ctx)
 	layout(ctx)
 	if len(ctx.persist) > 0 {
 		sync_persist(ctx, ctx.root)
 	}
 	emit(ctx)
+	emit_viewports(ctx)
 	flush_cursor(ctx)
 
 	prune(ctx)

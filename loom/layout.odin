@@ -563,7 +563,7 @@ place :: proc(ctx: ^Context, n: ^Node, origin: Vec2) {
 @(private)
 place_out_of_flow :: proc(ctx: ^Context, parent: ^Node, c: ^Node) {
 	cp := &c.computed
-	block := containing_block(ctx, parent, cp.position)
+	block := containing_block(ctx, parent, c)
 
 	known: [Axis]bool
 	for a in Axis {
@@ -610,8 +610,11 @@ in_flow :: proc(p: ^Props) -> bool {
 }
 
 @(private)
-containing_block :: proc(ctx: ^Context, parent: ^Node, position: Position) -> Rect {
-	if position == .Fixed {
+containing_block :: proc(ctx: ^Context, parent: ^Node, n: ^Node) -> Rect {
+	if n.computed.position == .Fixed {
+		if v := n.viewport; v != nil {
+			return {0, 0, v.rect.w, v.rect.h}
+		}
 		vp := ctx.input.viewport
 		return {0, 0, vp.x, vp.y}
 	}

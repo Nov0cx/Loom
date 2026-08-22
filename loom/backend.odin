@@ -6,6 +6,33 @@ Font_Metrics :: struct {
 	ascent, descent, line_gap: f32,
 }
 
+Viewport_Handle :: distinct u64
+
+Viewport_Events :: struct {
+	mouse:          Vec2,
+	wheel:          Vec2,
+	mouse_down:     Mouse_Set,
+	mouse_pressed:  Mouse_Set,
+	mouse_released: Mouse_Set,
+	keys_down:      Key_Set,
+	keys_pressed:   Key_Set,
+	mods:           Mod_Set,
+	text:           string,
+	rect:           Rect,
+	focused:        bool,
+	has_mouse:      bool,
+	closed:         bool,
+}
+
+Viewport_Ops :: struct {
+	create:   proc(title: string, rect: Rect, user: rawptr) -> Viewport_Handle,
+	destroy:  proc(v: Viewport_Handle, user: rawptr),
+	set_rect: proc(v: Viewport_Handle, rect: Rect, user: rawptr),
+	begin:    proc(v: Viewport_Handle, user: rawptr),
+	end:      proc(v: Viewport_Handle, user: rawptr),
+	poll:     proc(v: Viewport_Handle, user: rawptr) -> Viewport_Events,
+}
+
 Backend :: struct {
 	measure_run:   proc(font: Font, size: f32, text: string, spacing: f32, user: rawptr) -> f32,
 	font_metrics:  proc(font: Font, size: f32, user: rawptr) -> Font_Metrics,
@@ -13,6 +40,23 @@ Backend :: struct {
 	clipboard_get: proc(user: rawptr) -> string,
 	clipboard_set: proc(text: string, user: rawptr),
 	user:          rawptr,
+	viewports:     Maybe(Viewport_Ops),
+}
+
+has_viewports :: proc() -> bool {
+	return viewport_ops(ctx_of()) != nil
+}
+
+@(private)
+viewport_ops :: proc(ctx: ^Context) -> ^Viewport_Ops {
+	ops, ok := &ctx.cfg.backend.viewports.(Viewport_Ops)
+	if !ok {
+		return nil
+	}
+	if ops.create == nil || ops.destroy == nil || ops.poll == nil {
+		return nil
+	}
+	return ops
 }
 
 Config :: struct {

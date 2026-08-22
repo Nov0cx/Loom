@@ -46,6 +46,7 @@ Mod_Set :: bit_set[Mod;u8]
 Input :: struct {
 	dt:             f32,
 	viewport:       Vec2,
+	window_pos:     Vec2,
 	dpi:            f32,
 	mouse:          Vec2,
 	wheel:          Vec2,
@@ -68,6 +69,7 @@ Interaction :: struct {
 	released:       bool,
 	clicked:        bool,
 	right_clicked:  bool,
+	middle_clicked: bool,
 	double_clicked: bool,
 	focused:        bool,
 	changed:        bool,

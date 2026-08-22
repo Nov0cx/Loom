@@ -207,13 +207,31 @@ paint_order :: proc(ctx: ^Context, root: ^Node) -> []Paint_Entry {
 	if root == nil {
 		return nil
 	}
+	vp := Rect{0, 0, ctx.input.viewport.x, ctx.input.viewport.y}
+	return paint_order_space(ctx, root, nil, vp)
+}
+
+@(private)
+paint_order_viewport :: proc(ctx: ^Context, v: ^Viewport) -> []Paint_Entry {
+	if v == nil || v.node == nil {
+		return nil
+	}
+	return paint_order_space(ctx, v.node, v, {0, 0, v.rect.w, v.rect.h})
+}
+
+@(private)
+paint_order_space :: proc(
+	ctx: ^Context,
+	seed: ^Node,
+	space: ^Viewport,
+	clip: Rect,
+) -> []Paint_Entry {
 	out := make([dynamic]Paint_Entry, 0, max(ctx.live_nodes, 8), ctx.frame_allocator)
 	floats := make([dynamic]Float_Seed, 0, 8, ctx.frame_allocator)
 
-	vp := Rect{0, 0, ctx.input.viewport.x, ctx.input.viewport.y}
-	paint_walk(ctx, root, vp, 1, 0, &out, &floats)
+	paint_walk(ctx, seed, clip, space, 1, 0, &out, &floats)
 	for i := 0; i < len(floats); i += 1 {
-		paint_walk(ctx, floats[i].node, vp, floats[i].alpha, 0, &out, &floats)
+		paint_walk(ctx, floats[i].node, clip, space, floats[i].alpha, 0, &out, &floats)
 	}
 	return out[:]
 }
@@ -223,6 +241,7 @@ paint_walk :: proc(
 	ctx: ^Context,
 	n: ^Node,
 	clip: Rect,
+	space: ^Viewport,
 	alpha: f32,
 	depth: int,
 	out: ^[dynamic]Paint_Entry,
@@ -251,12 +270,12 @@ paint_walk :: proc(
 	items := paint_children(ctx, n, count)
 	if items == nil {
 		for c := n.first_child; c != nil; c = c.next {
-			paint_child(ctx, c, child_clip, a, depth, out, floats)
+			paint_child(ctx, c, child_clip, space, a, depth, out, floats)
 		}
 		return
 	}
 	for c in items {
-		paint_child(ctx, c, child_clip, a, depth, out, floats)
+		paint_child(ctx, c, child_clip, space, a, depth, out, floats)
 	}
 }
 
@@ -265,16 +284,20 @@ paint_child :: proc(
 	ctx: ^Context,
 	c: ^Node,
 	clip: Rect,
+	space: ^Viewport,
 	alpha: f32,
 	depth: int,
 	out: ^[dynamic]Paint_Entry,
 	floats: ^[dynamic]Float_Seed,
 ) {
+	if c.viewport != space {
+		return
+	}
 	if .Floating in c.flags {
 		append(floats, Float_Seed{node = c, alpha = alpha})
 		return
 	}
-	paint_walk(ctx, c, clip, alpha, depth + 1, out, floats)
+	paint_walk(ctx, c, clip, space, alpha, depth + 1, out, floats)
 }
 
 @(private)
@@ -318,8 +341,13 @@ emit :: proc(ctx: ^Context) {
 		return
 	}
 
-	order := paint_order(ctx, ctx.root)
+	list, count := emit_order(ctx, paint_order(ctx, ctx.root), true)
+	ctx.cmd_count = count
+	ctx.draw_list = list
+}
 
+@(private)
+emit_order :: proc(ctx: ^Context, order: []Paint_Entry, debug: bool) -> (Draw_List, int) {
 	e := Emitter {
 		ctx  = ctx,
 		cmds = make([dynamic]Draw_Command, 0, max(ctx.live_nodes * 2, 64), ctx.frame_allocator),
@@ -331,12 +359,11 @@ emit :: proc(ctx: ^Context) {
 	}
 	unwind_clips(&e, 0)
 
-	ctx.cmd_count = len(e.cmds)
-	emit_debug(&e, order)
-
-	ctx.draw_list = Draw_List {
-		cmds = e.cmds[:],
+	count := len(e.cmds)
+	if debug {
+		emit_debug(&e, order)
 	}
+	return Draw_List{cmds = e.cmds[:]}, count
 }
 
 @(private)
