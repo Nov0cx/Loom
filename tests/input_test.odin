@@ -1,6 +1,7 @@
 package tests
 
 import "core:testing"
+import "core:unicode/utf8"
 import ui "../loom"
 
 DT :: f32(1.0 / 60.0)
@@ -37,6 +38,7 @@ Rig :: struct {
 	wheel:     ui.Vec2,
 	prev_down: ui.Mouse_Set,
 	prev_keys: ui.Key_Set,
+	text:      string,
 }
 
 rig_open :: proc(r: ^Rig, dt: f32 = DT) {
@@ -52,11 +54,13 @@ rig_open :: proc(r: ^Rig, dt: f32 = DT) {
 		keys_down      = r.keys,
 		keys_pressed   = r.keys,
 		mods           = r.mods,
+		text           = r.text,
 	}
 	ui.begin_frame(in_)
 	r.prev_down = r.down
 	r.prev_keys = r.keys
 	r.wheel = {}
+	r.text = ""
 }
 
 move :: proc(r: ^Rig, x, y: f32) {
@@ -1345,4 +1349,60 @@ test_cursor_is_pushed_once_per_change :: proc(t: ^testing.T) {
 	ui.end_frame()
 	testing.expect_value(t, p.cursor, ui.Cursor.Pointer)
 	testing.expect_value(t, p.calls, 4)
+}
+
+// ---- widget rig helpers ----
+
+typed :: proc(r: ^Rig, s: string) {
+	r.text = s
+}
+
+tap :: proc(r: ^Rig, k: ui.Key) {
+	r.keys += {k}
+}
+
+untap :: proc(r: ^Rig, k: ui.Key) {
+	r.keys -= {k}
+}
+
+mods_set :: proc(r: ^Rig, m: ui.Mod) {
+	r.mods += {m}
+}
+
+mods_clear :: proc(r: ^Rig) {
+	r.mods = {}
+}
+
+Clip_Probe :: struct {
+	buf: [dynamic]byte,
+}
+
+clip_backend :: proc(p: ^Clip_Probe) -> ui.Backend {
+	b := ui.noop_backend()
+	b.measure_run = clip_run
+	b.font_metrics = fake_metrics
+	b.user = p
+	b.clipboard_get = proc(user: rawptr) -> string {
+		q := (^Clip_Probe)(user)
+		return string(q.buf[:])
+	}
+	b.clipboard_set = proc(text: string, user: rawptr) {
+		q := (^Clip_Probe)(user)
+		clear(&q.buf)
+		append(&q.buf, text)
+	}
+	return b
+}
+
+clip_run :: proc(font: ui.Font, size: f32, text: string, spacing: f32, user: rawptr) -> f32 {
+	return (CHAR_W + spacing) * f32(utf8.rune_count_in_string(text))
+}
+
+clipped :: proc(ctx: ^ui.Context, p: ^Clip_Probe, allocator := context.allocator) {
+	p.buf = make([dynamic]byte, 0, 64, allocator)
+	ui.init(ctx, ui.Config{backend = clip_backend(p)}, allocator)
+}
+
+clip_free :: proc(p: ^Clip_Probe) {
+	delete(p.buf)
 }

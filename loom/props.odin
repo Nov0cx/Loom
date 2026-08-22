@@ -33,6 +33,7 @@ Align :: enum u8 {
 
 Position :: enum u8 {
 	Flow,
+	Relative,
 	Absolute,
 	Fixed,
 }

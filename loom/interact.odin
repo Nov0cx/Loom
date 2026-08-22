@@ -400,3 +400,46 @@ wants_keyboard :: proc() -> bool {
 	n := node_alive(ctx, ctx.focus_id)
 	return n != nil && .Text_Input in n.flags
 }
+
+key_pressed :: proc(k: Key) -> bool {
+	ctx := ctx_of()
+	return k in ctx.input.keys_pressed && k not_in ctx.keys_eaten
+}
+
+key_held :: proc(k: Key) -> bool {
+	ctx := ctx_of()
+	return k in ctx.input.keys_down && k not_in ctx.keys_eaten
+}
+
+consume_key :: proc(k: Key) {
+	ctx := ctx_of()
+	ctx.keys_eaten += {k}
+}
+
+mods :: proc() -> Mod_Set {
+	return ctx_of().input.mods
+}
+
+typed_text :: proc() -> string {
+	return ctx_of().input.text
+}
+
+mouse_pos :: proc() -> Vec2 {
+	return ctx_of().input.mouse
+}
+
+clipboard_text :: proc() -> string {
+	ctx := ctx_of()
+	if ctx.cfg.backend.clipboard_get == nil {
+		return ""
+	}
+	return ctx.cfg.backend.clipboard_get(ctx.cfg.backend.user)
+}
+
+set_clipboard_text :: proc(text: string) {
+	ctx := ctx_of()
+	if ctx.cfg.backend.clipboard_set == nil {
+		return
+	}
+	ctx.cfg.backend.clipboard_set(text, ctx.cfg.backend.user)
+}

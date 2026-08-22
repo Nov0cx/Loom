@@ -74,7 +74,7 @@ fit_node :: proc(ctx: ^Context, n: ^Node) {
 	count := 0
 	for c := n.first_child; c != nil; c = c.next {
 		cp := &c.computed
-		if cp.position != .Flow {
+		if !in_flow(cp) {
 			continue
 		}
 		main_sum += c.lay.fit[mi] + edge_total(cp.margin, ax)
@@ -135,7 +135,7 @@ node_baseline :: proc(ctx: ^Context, n: ^Node, inner: Edges) -> f32 {
 		return inner.t + text_ascent(ctx, &n.computed)
 	}
 	for c := n.first_child; c != nil; c = c.next {
-		if c.computed.position != .Flow {
+		if !in_flow(&c.computed) {
 			continue
 		}
 		return inner.t + c.lay.pos.y + c.lay.baseline
@@ -392,7 +392,7 @@ line_cross :: proc(row: []^Node, cx: Axis) -> (out: f32) {
 gather_flow :: proc(ctx: ^Context, n: ^Node) -> []^Node {
 	count := 0
 	for c := n.first_child; c != nil; c = c.next {
-		if c.computed.position == .Flow {
+		if in_flow(&c.computed) {
 			count += 1
 		}
 	}
@@ -403,7 +403,7 @@ gather_flow :: proc(ctx: ^Context, n: ^Node) -> []^Node {
 	items := make([]^Node, count, ctx.frame_allocator)
 	at := 0
 	for c := n.first_child; c != nil; c = c.next {
-		if c.computed.position != .Flow {
+		if !in_flow(&c.computed) {
 			continue
 		}
 		items[at] = c
@@ -541,7 +541,7 @@ place :: proc(ctx: ^Context, n: ^Node, origin: Vec2) {
 	content: Vec2
 	for c := n.first_child; c != nil; c = c.next {
 		cp := &c.computed
-		if cp.position != .Flow {
+		if !in_flow(cp) {
 			continue
 		}
 		place(ctx, c, {co.x + c.lay.pos.x, co.y + c.lay.pos.y})
@@ -551,7 +551,7 @@ place :: proc(ctx: ^Context, n: ^Node, origin: Vec2) {
 	n.content = content
 
 	for c := n.first_child; c != nil; c = c.next {
-		if c.computed.position != .Flow {
+		if !in_flow(&c.computed) {
 			place_out_of_flow(ctx, n, c)
 		}
 	}
@@ -602,6 +602,11 @@ place_out_of_flow :: proc(ctx: ^Context, parent: ^Node, c: ^Node) {
 	}
 
 	place(ctx, c, {block.x + c.lay.pos.x, block.y + c.lay.pos.y})
+}
+
+@(private)
+in_flow :: proc(p: ^Props) -> bool {
+	return p.position == .Flow || p.position == .Relative
 }
 
 @(private)

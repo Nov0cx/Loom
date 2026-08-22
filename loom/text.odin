@@ -141,6 +141,21 @@ measure :: proc(text: string, props: Props, max_w: f32 = 0, loc := #caller_locat
 	return e.size
 }
 
+text_width :: proc(text: string, props: Props = {}, loc := #caller_location) -> f32 {
+	ctx := ctx_of(loc)
+	if text == "" {
+		return 0
+	}
+
+	p := props
+	if n := current(); n != nil {
+		inherit_props(&p, &n.computed)
+	}
+	inherit_props(&p, &ctx.cfg.root)
+
+	return measure_run(ctx, text_style(ctx, &p), text)
+}
+
 @(private)
 text_key :: proc(st: Text_Style, text: string, max_w: f32) -> Text_Key {
 	return Text_Key {

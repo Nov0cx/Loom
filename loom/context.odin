@@ -66,6 +66,7 @@ Context :: struct {
 	focus_next_set:    bool,
 	capture_id:        Id,
 	capture_implicit:  bool,
+	keys_eaten:        Key_Set,
 	press_id:          [Mouse_Button]Id,
 	press_pos:         [Mouse_Button]Vec2,
 	pressed_id:        [Mouse_Button]Id,
@@ -199,6 +200,7 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 		virtual.arena_free_all(&ctx.frame_arena)
 	}
 	ctx.input = input
+	ctx.keys_eaten = {}
 	ctx.draw_list = {}
 	ctx.text_hits = 0
 	ctx.text_misses = 0

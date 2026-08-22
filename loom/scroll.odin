@@ -31,6 +31,20 @@ scroll_limit :: proc(n: ^Node) -> Vec2 {
 	return {max(n.content.x - box.x, 0), max(n.content.y - box.y, 0)}
 }
 
+inner_box :: proc(n: ^Node) -> Vec2 {
+	if n == nil {
+		return {}
+	}
+	return content_box(n)
+}
+
+scroll_max :: proc(n: ^Node) -> Vec2 {
+	if n == nil {
+		return {}
+	}
+	return scroll_limit(n)
+}
+
 @(private)
 find_tween :: proc(n: ^Node) -> ^Scroll_Tween {
 	return (^Scroll_Tween)(state_find(n, Scroll_Tween))
@@ -194,7 +208,7 @@ scroll_to :: proc(id: Id, animated := true) {
 	}
 
 	tw := (^Scroll_Tween)(
-		state_raw(ctx, sc, Scroll_Tween, size_of(Scroll_Tween), align_of(Scroll_Tween)),
+		state_raw(ctx, sc, Scroll_Tween, size_of(Scroll_Tween), align_of(Scroll_Tween), nil),
 	)
 	tw.from = sc.scroll
 	tw.to = to

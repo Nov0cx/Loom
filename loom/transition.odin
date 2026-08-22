@@ -65,6 +65,10 @@ animating :: proc() -> bool {
 	return ctx.animating || ctx.scrolling
 }
 
+request_frame :: proc(loc := #caller_location) {
+	ctx_of(loc).animating = true
+}
+
 @(private)
 spread_color :: proc(c: Color, out: ^[MAX_COMPONENTS]f32, at: int) {
 	for i in 0 ..< 4 {
@@ -259,7 +263,7 @@ animate_node :: proc(ctx: ^Context, n: ^Node, resolved: Props) {
 		return
 	}
 
-	an := (^Anim)(state_raw(ctx, n, Anim, size_of(Anim), align_of(Anim)))
+	an := (^Anim)(state_raw(ctx, n, Anim, size_of(Anim), align_of(Anim), nil))
 
 	for prop in tr.props {
 		s := &an.slots[prop]
