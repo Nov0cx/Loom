@@ -373,11 +373,18 @@ lint_globals :: proc(dir: string) -> bool {
 			ok = false
 			continue
 		}
+		rodata := false
 		for line, i in strings.split_lines(string(data), context.temp_allocator) {
-			name, is_global := global_decl_name(line)
-			if !is_global || name == ALLOWED_GLOBAL {
+			if strings.has_prefix(line, "@(rodata)") {
+				rodata = true
 				continue
 			}
+			name, is_global := global_decl_name(line)
+			if !is_global || name == ALLOWED_GLOBAL || rodata {
+				rodata = false
+				continue
+			}
+			rodata = false
 			fmt.eprintfln(
 				"lint: %s:%d: mutable package-level variable %q, only %q is allowed",
 				e.fullpath,

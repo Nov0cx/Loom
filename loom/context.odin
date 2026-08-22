@@ -35,6 +35,7 @@ Context :: struct {
 	live_nodes:       int,
 	free_count:       int,
 	state_blocks:     int,
+	animating:        bool,
 	seen:             map[Id]runtime.Source_Code_Location,
 }
 
@@ -135,7 +136,6 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 	root := touch(ctx, hash_string(0, ROOT_KEY), #location(begin_frame_ctx))
 	root.parent = nil
 	root.el = el
-	root.computed = el.props
 	root.rect = {0, 0, input.viewport.x, input.viewport.y}
 	ctx.root = root
 
@@ -167,6 +167,8 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 	pop(&ctx.open)
 	ctx.id_seed = 0
 	ctx.in_frame = false
+
+	cascade(ctx)
 
 	prune(ctx)
 	return ctx.draw_list

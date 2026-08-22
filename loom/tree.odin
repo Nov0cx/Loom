@@ -42,6 +42,7 @@ Node :: struct {
 	scroll:                    Vec2,
 	computed:                  Props,
 	state:                     State_Set,
+	input_state:               State_Set,
 	flags:                     Flags,
 	last_touched:              u64,
 	user:                      rawptr,
@@ -62,8 +63,7 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 
 	n.el = el
 	n.flags = el.flags
-	n.state = el.state
-	n.computed = el.props
+	n.state += el.state
 	n.draw = nil
 	n.draw_user = nil
 
@@ -168,6 +168,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 	}
 
 	n.last_touched = ctx.frame_index
+	n.state = n.input_state + (n.state & CARRIED_STATES)
 	n.first_child = nil
 	n.next = nil
 	return n

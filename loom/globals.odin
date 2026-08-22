@@ -18,6 +18,7 @@ Globals :: struct {
 g: ^Globals
 
 get_globals :: proc() -> ^Globals {
+    assert(g != nil, "globals are not set")
 	return g
 }
 
