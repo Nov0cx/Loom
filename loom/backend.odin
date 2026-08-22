@@ -16,12 +16,16 @@ Backend :: struct {
 }
 
 Config :: struct {
-	backend:         Backend,
-	root:            Props,
-	prune_after:     u32,
-	double_click:    f32,
-	scroll_speed:    f32,
-	frame_allocator: runtime.Allocator,
+	backend:           Backend,
+	root:              Props,
+	prune_after:       u32,
+	double_click:      f32,
+	scroll_speed:      f32,
+	scroll_inertia:    f32,
+	scroll_damping:    f32,
+	scroll_to_dur:     f32,
+	no_scroll_inertia: bool,
+	frame_allocator:   runtime.Allocator,
 }
 
 noop_backend :: proc() -> Backend {

@@ -61,3 +61,13 @@ free_states :: proc(ctx: ^Context, n: ^Node) {
 	}
 	n.states = nil
 }
+
+@(private)
+state_find :: proc(n: ^Node, type: typeid) -> rawptr {
+	for b := n.states; b != nil; b = b.next {
+		if b.type == type {
+			return block_data(b)
+		}
+	}
+	return nil
+}

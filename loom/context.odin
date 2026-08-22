@@ -8,6 +8,14 @@ import "core:sync"
 DEFAULT_PRUNE_AFTER :: 2
 DEFAULT_DOUBLE_CLICK :: 0.3
 DEFAULT_SCROLL_SPEED :: 40
+DEFAULT_SCROLL_INERTIA :: f32(6)
+DEFAULT_SCROLL_DAMPING :: f32(0.0015)
+DEFAULT_SCROLL_TO_DUR :: f32(0.25)
+
+SCROLL_STOP :: f32(4)
+SCROLL_EPS :: f32(0.01)
+DRAG_SLOP :: f32(4)
+CLICK_SLOP :: f32(4)
 
 Open_Entry :: struct {
 	node:       ^Node,
@@ -37,6 +45,41 @@ Context :: struct {
 	state_blocks:     int,
 	animating:        bool,
 	seen:             map[Id]runtime.Source_Code_Location,
+
+	hovered_id:        Id,
+	scroll_id:         Id,
+	focus_id:          Id,
+	focus_next:        Id,
+	focus_next_set:    bool,
+	capture_id:        Id,
+	capture_implicit:  bool,
+	press_id:          [Mouse_Button]Id,
+	press_pos:         [Mouse_Button]Vec2,
+	pressed_id:        [Mouse_Button]Id,
+	released_id:       [Mouse_Button]Id,
+	clicked_id:        Id,
+	right_clicked_id:  Id,
+	double_clicked_id: Id,
+	activate_id:       Id,
+	drag_id:           Id,
+	drag_active:       bool,
+	drag_start:        Vec2,
+	drag_delta:        Vec2,
+	wheel_id:          [Axis]Id,
+	wheel_amount:      [Axis]f32,
+	last_click_id:     Id,
+	last_click_time:   f64,
+	last_click_pos:    Vec2,
+	click_count:       int,
+	prev_mouse:        Vec2,
+	prev_keys:         Key_Set,
+	have_input:        bool,
+	time:              f64,
+	cursor:            Cursor,
+	cursor_forced:     bool,
+	cursor_last:       Cursor,
+	cursor_valid:      bool,
+	scrolling:         bool,
 }
 
 init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
@@ -52,6 +95,15 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	}
 	if ctx.cfg.scroll_speed == 0 {
 		ctx.cfg.scroll_speed = DEFAULT_SCROLL_SPEED
+	}
+	if ctx.cfg.scroll_inertia == 0 {
+		ctx.cfg.scroll_inertia = DEFAULT_SCROLL_INERTIA
+	}
+	if ctx.cfg.scroll_damping == 0 {
+		ctx.cfg.scroll_damping = DEFAULT_SCROLL_DAMPING
+	}
+	if ctx.cfg.scroll_to_dur == 0 {
+		ctx.cfg.scroll_to_dur = DEFAULT_SCROLL_TO_DUR
 	}
 
 	if cfg.frame_allocator.procedure != nil {
@@ -170,13 +222,10 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 
 	cascade(ctx)
 	layout(ctx)
+	flush_cursor(ctx)
 
 	prune(ctx)
 	return ctx.draw_list
-}
-
-@(private)
-recompute_states :: proc(ctx: ^Context) {
 }
 
 @(private)

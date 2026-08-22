@@ -15,7 +15,7 @@ styled :: proc(ctx: ^ui.Context, root: ui.Props = {}, allocator := context.alloc
 }
 
 frame_dt :: proc(dt: f32) {
-	ui.begin_frame(ui.Input{dt = dt, viewport = VIEWPORT, dpi = 1})
+	ui.begin_frame(ui.Input{dt = dt, viewport = VIEWPORT, dpi = 1, mouse = {-1, -1}})
 }
 
 one :: proc(el: ui.Element) -> ui.Props {

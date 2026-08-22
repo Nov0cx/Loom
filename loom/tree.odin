@@ -15,6 +15,7 @@ Flag :: enum u16 {
 	Pass_Through,
 	Disabled,
 	No_Anim,
+	Text_Input,
 }
 
 Flags :: bit_set[Flag;u16]
@@ -52,6 +53,8 @@ Node :: struct {
 	draw_user:                 rawptr,
 	first_frame:               bool,
 	lay:                       ^Layout,
+	scroll_vel:                Vec2,
+	scroll_want:               Vec2,
 }
 
 begin :: proc(el: Element, loc := #caller_location) -> Interaction {
@@ -71,7 +74,7 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 	append(&ctx.open, Open_Entry{node = n, prev_seed = ctx.id_seed, id_depth = len(ctx.id_stack)})
 	ctx.id_seed = n.id
 
-	return interaction(n)
+	return interaction(ctx, n)
 }
 
 end :: proc() {
@@ -212,6 +215,33 @@ release_node :: proc(ctx: ^Context, n: ^Node) {
 }
 
 @(private)
-interaction :: proc(n: ^Node) -> Interaction {
-	return Interaction{id = n.id, node = n, rect = n.rect, state = n.state}
+interaction :: proc(ctx: ^Context, n: ^Node) -> Interaction {
+	it := Interaction {
+		id    = n.id,
+		node  = n,
+		rect  = n.rect,
+		state = n.state,
+	}
+	it.hovered = ctx.hovered_id == n.id
+	it.focused = ctx.focus_id == n.id
+	it.pressed = ctx.pressed_id[.Left] == n.id
+	it.released = ctx.released_id[.Left] == n.id
+	it.clicked = ctx.clicked_id == n.id
+	it.right_clicked = ctx.right_clicked_id == n.id
+	it.double_clicked = ctx.double_clicked_id == n.id
+
+	if ctx.drag_id == n.id {
+		it.dragging = ctx.drag_active
+		it.drag_start = ctx.drag_start
+		if ctx.drag_active {
+			it.drag_delta = ctx.drag_delta
+		}
+	}
+
+	for a in Axis {
+		if ctx.wheel_id[a] == n.id {
+			it.wheel[int(a)] = ctx.wheel_amount[a]
+		}
+	}
+	return it
 }

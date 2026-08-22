@@ -61,7 +61,8 @@ ease_at :: proc(e: Ease, x: f32) -> f32 {
 }
 
 animating :: proc() -> bool {
-	return ctx_of().animating
+	ctx := ctx_of()
+	return ctx.animating || ctx.scrolling
 }
 
 @(private)
