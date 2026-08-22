@@ -40,10 +40,10 @@ test_tree_shape :: proc(t: ^testing.T) {
 
 	dump := ui.dump_tree_string(context.temp_allocator)
 	expected := `#loom.root [Row] rect(0,0,800,600)
-  #sidebar [Column] rect(0,0,0,0) bg=#1C1C21FF pad=(12,12,12,12)
-    #title [Row] rect(0,0,0,0) text="Library"
-    #songs [Row] rect(0,0,0,0) bg=#6366F1FF flags=[Clickable]
-  #content [Row] rect(0,0,0,0)
+  #sidebar [Column] rect(0,0,24,600) bg=#1C1C21FF pad=(12,12,12,12)
+    #title [Row] rect(12,12,0,0) text="Library"
+    #songs [Row] rect(12,12,0,0) bg=#6366F1FF flags=[Clickable]
+  #content [Row] rect(24,0,0,600)
 `
 	testing.expect_value(t, dump, expected)
 }
@@ -203,9 +203,9 @@ test_keyed_reorder_keeps_state_with_the_key :: proc(t: ^testing.T) {
 
 	dump := ui.dump_tree_string(context.temp_allocator)
 	expected := `#loom.root [Row] rect(0,0,800,600)
-  #gamma [Row] rect(0,0,0,0)
-  #alpha [Row] rect(0,0,0,0)
-  #beta [Row] rect(0,0,0,0)
+  #gamma [Row] rect(0,0,0,600)
+  #alpha [Row] rect(0,0,0,600)
+  #beta [Row] rect(0,0,0,600)
 `
 	testing.expect_value(t, dump, expected)
 
@@ -370,9 +370,9 @@ test_scope_closes_at_end_of_scope :: proc(t: ^testing.T) {
 
 	dump := ui.dump_tree_string(context.temp_allocator)
 	expected := `#loom.root [Row] rect(0,0,800,600)
-  #outer [Column] rect(0,0,0,0)
+  #outer [Column] rect(0,0,0,600)
     #inner [Row] rect(0,0,0,0)
-  #sibling [Row] rect(0,0,0,0)
+  #sibling [Row] rect(0,0,0,600)
 `
 	testing.expect_value(t, dump, expected)
 }

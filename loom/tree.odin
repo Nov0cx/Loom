@@ -51,6 +51,7 @@ Node :: struct {
 	draw:                      proc(node: ^Node, user: rawptr),
 	draw_user:                 rawptr,
 	first_frame:               bool,
+	lay:                       ^Layout,
 }
 
 begin :: proc(el: Element, loc := #caller_location) -> Interaction {
@@ -171,6 +172,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 	n.state = n.input_state + (n.state & CARRIED_STATES)
 	n.first_child = nil
 	n.next = nil
+	n.lay = nil
 	return n
 }
 

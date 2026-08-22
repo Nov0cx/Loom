@@ -169,6 +169,7 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 	ctx.in_frame = false
 
 	cascade(ctx)
+	layout(ctx)
 
 	prune(ctx)
 	return ctx.draw_list
