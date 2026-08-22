@@ -1,0 +1,12 @@
+{
+	"tabs": true,
+	"tabs_width": 4,
+	"spaces": 4,
+	"character_width": 110,
+	"newline_limit": 2,
+	"sort_imports": true,
+	"align_struct_fields": true,
+	"align_struct_values": true,
+	"brace_style": "_1TBS",
+	"convert_do": false
+}

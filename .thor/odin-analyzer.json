@@ -1,0 +1,10 @@
+{
+	"collections": [
+		{ "name": "loom", "path": "loom" },
+		{ "name": "backends", "path": "example_backends" }
+	],
+	"enable_hover": true,
+	"enable_document_symbols": true,
+	"enable_references": true,
+	"enable_rename": true
+}

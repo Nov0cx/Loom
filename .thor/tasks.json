@@ -1,0 +1,15 @@
+{
+	"tasks": [
+		{ "name": "check library", "command": "odin run build.odin -file -- -target:lib" },
+		{ "name": "test", "command": "odin run build.odin -file -- -target:tests" },
+		{ "name": "hot reload", "command": "odin run build.odin -file -- -target:hot -run" },
+		{ "name": "run demo (raylib)", "command": "odin run build.odin -file -- -target:demo -backend:raylib -run" },
+		{ "name": "run demo (opengl)", "command": "odin run build.odin -file -- -target:demo -backend:opengl -run" },
+		{ "name": "run demo (dx11)", "command": "odin run build.odin -file -- -target:demo -backend:dx11 -run" },
+		{ "name": "run demo (vulkan 1.3)", "command": "odin run build.odin -file -- -target:demo -backend:vulkan_1_3 -run" },
+		{ "name": "run demo (sokol)", "command": "odin run build.odin -file -- -target:demo -backend:sokol -run" },
+		{ "name": "build all", "command": "odin run build.odin -file -- -target:all" },
+		{ "name": "build all (release)", "command": "odin run build.odin -file -- -target:all -mode:release -vet" },
+		{ "name": "clean", "command": "odin run build.odin -file -- -clean" }
+	]
+}
