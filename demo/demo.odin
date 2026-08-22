@@ -3,7 +3,7 @@ package demo
 import ui "../loom"
 
 Track :: struct {
-	id, title, artist: string
+	id, title, artist: string,
 }
 
 Nav :: enum {

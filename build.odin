@@ -168,7 +168,19 @@ build_lib :: proc(opt: Options) -> bool {
 	if !cmd(opt, ..args[:]) {
 		return false
 	}
-	return lint_globals(LIB_DIR)
+	if !lint_globals(LIB_DIR, ALLOWED_GLOBAL) {
+		return false
+	}
+	ok := true
+	for b in BACKENDS {
+		if !os.exists(b.lib_dir) {
+			continue
+		}
+		if !lint_globals(b.lib_dir, "") {
+			ok = false
+		}
+	}
+	return ok
 }
 
 build_tests :: proc(opt: Options) -> bool {
@@ -227,7 +239,6 @@ build_demo_for :: proc(opt: Options, b: Backend_Info) -> bool {
 
 	args := make([dynamic]string, context.temp_allocator)
 	append(&args, "odin", "build", b.demo_dir, fmt.tprintf("-out:%s", out))
-	append(&args, fmt.tprintf("-define:LOOM_BACKEND=%s", b.name))
 	append_common(&args, opt)
 	if !cmd(opt, ..args[:]) {
 		return false
@@ -355,7 +366,7 @@ wait_ok :: proc(desc: os.Process_Desc, what: string) -> bool {
 
 ALLOWED_GLOBAL :: "g"
 
-lint_globals :: proc(dir: string) -> bool {
+lint_globals :: proc(dir: string, allow: string) -> bool {
 	entries, err := os.read_directory_by_path(dir, -1, context.temp_allocator)
 	if err != nil {
 		fmt.eprintfln("lint: could not read %s: %v", dir, err)
@@ -380,13 +391,13 @@ lint_globals :: proc(dir: string) -> bool {
 				continue
 			}
 			name, is_global := global_decl_name(line)
-			if !is_global || name == ALLOWED_GLOBAL || rodata {
+			if !is_global || (allow != "" && name == allow) || rodata {
 				rodata = false
 				continue
 			}
 			rodata = false
 			fmt.eprintfln(
-				"lint: %s:%d: mutable package-level variable %q, only %q is allowed",
+				"lint: %s:%d: mutable package-level variable %q is not allowed (only %q is)",
 				e.fullpath,
 				i + 1,
 				name,
@@ -397,7 +408,11 @@ lint_globals :: proc(dir: string) -> bool {
 	}
 
 	if ok {
-		fmt.printfln("lint: %s has no mutable package globals other than %q", dir, ALLOWED_GLOBAL)
+		if allow == "" {
+			fmt.printfln("lint: %s has no mutable package globals", dir)
+		} else {
+			fmt.printfln("lint: %s has no mutable package globals other than %q", dir, allow)
+		}
 	}
 	return ok
 }

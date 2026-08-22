@@ -72,6 +72,7 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 	attach(ctx, n)
 
 	n.el = el
+	n.el.rules = frame_rules(ctx, el.rules)
 	n.flags = el.flags
 	n.state += el.state
 	n.draw = nil
@@ -85,6 +86,16 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 	ctx.id_seed = n.id
 
 	return interaction(ctx, n)
+}
+
+@(private)
+frame_rules :: proc(ctx: ^Context, rules: []Rule) -> []Rule {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make([]Rule, len(rules), ctx.frame_allocator)
+	copy(out, rules)
+	return out
 }
 
 // cant use caller loc because of @(deferred_none = end) on scope

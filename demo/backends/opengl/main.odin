@@ -11,7 +11,7 @@ FONT := #load("../../fonts/Karla-Regular.ttf")
 
 WIDTH :: 1280
 HEIGHT :: 800
-IDLE_TIMEOUT :: 0.25
+IDLE_TIMEOUT :: 1.0
 SETTINGS :: "loom_demo_opengl.ini"
 
 main :: proc() {
