@@ -233,6 +233,11 @@ build_demo :: proc(opt: Options) -> bool {
 
 build_demo_for :: proc(opt: Options, b: Backend_Info) -> bool {
 	fmt.printfln("demo: building %s", b.name)
+
+	if !build_shaders(opt, b) {
+		return false
+	}
+
 	suffix := "_release" if opt.mode == .release else ""
 	name := fmt.tprintf("demo_%s%s%s", b.name, suffix, EXE)
 	out := join(opt.out, name)
@@ -460,4 +465,61 @@ join :: proc(parts: ..string) -> string {
 
 is_ident_byte :: proc(c: byte) -> bool {
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
+SHADER_STAGES :: [2]struct {
+	entry: string,
+	stage: string,
+	out:   string,
+}{{"vs_main", "vertex", "ui.vert.spv"}, {"fs_main", "fragment", "ui.frag.spv"}}
+
+build_shaders :: proc(opt: Options, b: Backend_Info) -> bool {
+	dir := join(b.lib_dir, "shaders")
+	src := join(dir, "ui.slang")
+	if !os.exists(src) {
+		return true
+	}
+
+	slangc, found := find_slangc()
+	if !found {
+		fmt.printfln("shaders: skipping %s, slangc was not found (using the committed .spv)", b.name)
+		return true
+	}
+
+	fmt.printfln("shaders: compiling %s", src)
+	for s in SHADER_STAGES {
+		args := make([dynamic]string, context.temp_allocator)
+		append(&args, slangc, src, "-target", "spirv", "-profile", "spirv_1_3")
+		append(&args, "-entry", s.entry, "-stage", s.stage, "-o", join(dir, s.out))
+		if !cmd(opt, ..args[:]) {
+			return false
+		}
+	}
+	return true
+}
+
+find_slangc :: proc() -> (string, bool) {
+	name := fmt.tprintf("slangc%s", EXE)
+	if sdk, ok := os.lookup_env("VULKAN_SDK", context.temp_allocator); ok && sdk != "" {
+		if p := join(sdk, "Bin", name); os.exists(p) {
+			return p, true
+		}
+		if p := join(sdk, "bin", name); os.exists(p) {
+			return p, true
+		}
+	}
+	path, has_path := os.lookup_env("PATH", context.temp_allocator)
+	if !has_path {
+		return "", false
+	}
+	sep := ";" when ODIN_OS == .Windows else ":"
+	for dir in strings.split(path, sep, context.temp_allocator) {
+		if dir == "" {
+			continue
+		}
+		if p := join(dir, name); os.exists(p) {
+			return p, true
+		}
+	}
+	return "", false
 }
