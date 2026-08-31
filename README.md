@@ -16,7 +16,9 @@ Everything goes through `build.odin`:
 odin run build.odin -file -- -help                          # the flag reference
 odin run build.odin -file -- -target:lib                    # type-check the library on its own
 odin run build.odin -file -- -target:tests                  # the headless suite
-odin run build.odin -file -- -target:hot -run               # the host + plugin hot-reload harness
+odin run build.odin -file -- -target:hot -run               # the headless host + plugin harness
+odin run build.odin -file -- -target:hot_demo -run          # the windowed hot-reload demo
+odin run build.odin -file -- -target:hot_panels             # rebuild just the panel DLL
 odin run build.odin -file -- -target:demo -backend:raylib -run
 odin run build.odin -file -- -target:demo -backend:vulkan_1_3 -mode:release -run
 odin run build.odin -file -- -target:all
@@ -62,6 +64,11 @@ A reload zeroes the DLL's own globals, so `plugin_load` must re-adopt every time
 is two explicit procs rather than lazy initialisation. `set_globals` asserts that `VERSION`,
 `size_of(Context)` and `size_of(Node)` match, which turns a stale-DLL mismatch into an assert on load
 instead of a crash later.
+
+`tests/` holds the headless version of that contract. `demo_hotreload/` is the windowed one: the same
+demo with its panels in a DLL that reloads while the window stays open, with the tree, scroll
+positions and text carets intact. See `demo_hotreload/README.md` for what survives a reload and what
+does not.
 
 ## License
 

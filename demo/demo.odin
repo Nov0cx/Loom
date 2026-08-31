@@ -121,7 +121,7 @@ header :: proc(app: ^App) {
 	)
 
 	ui.label("Loom", {props = {font_size = 20, color = t.accent}})
-	ui.label("opengl and raylib", {props = {color = t.text_muted, font_size = 12}})
+	ui.label("six backends, one draw list", {props = {color = t.text_muted, font_size = 12}})
 	ui.spacer()
 
 	ui.label("volume", {props = {color = t.text_muted, font_size = 12}})

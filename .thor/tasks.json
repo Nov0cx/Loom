@@ -3,6 +3,8 @@
 		{ "name": "check library", "command": "odin run build.odin -file -- -target=lib" },
 		{ "name": "test", "command": "odin run build.odin -file -- -target=tests" },
 		{ "name": "hot reload", "command": "odin run build.odin -file -- -target=hot -run" },
+		{ "name": "hot reload demo", "command": "odin run build.odin -file -- -target=hot_demo -run" },
+		{ "name": "rebuild hot panels", "command": "odin run build.odin -file -- -target=hot_panels" },
 		{ "name": "run demo (raylib)", "command": "odin run build.odin -file -- -target=demo -backend=raylib -run" },
 		{ "name": "run demo (opengl)", "command": "odin run build.odin -file -- -target=demo -backend=opengl -run" },
 		{ "name": "run demo (dx11)", "command": "odin run build.odin -file -- -target=demo -backend=dx11 -run" },

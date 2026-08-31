@@ -28,11 +28,13 @@ Target :: enum {
 	demo,
 	tests,
 	hot,
+	hot_demo,
+	hot_panels,
 	all,
 }
 
 Options :: struct {
-	target:  Target `usage:"what to build: lib, demo, tests, hot, all (default: lib)"`,
+	target:  Target `usage:"what to build: lib, demo, tests, hot, hot_demo, hot_panels, all (default: lib)"`,
 	backend: Backend_Kind `usage:"which example backend the demo links: raylib, opengl, dx11, vulkan_1_2, vulkan_1_3, sokol, all"`,
 	mode:    Mode `usage:"debug (default) or release"`,
 	run:     bool `usage:"run after building"`,
@@ -49,6 +51,7 @@ Backend_Info :: struct {
 	demo_dir:  string,
 	platforms: bit_set[runtime.Odin_OS_Type],
 	needs:     string,
+	define:    string,
 }
 
 DESKTOP :: bit_set[runtime.Odin_OS_Type]{.Windows, .Linux, .Darwin, .FreeBSD, .OpenBSD, .NetBSD}
@@ -61,6 +64,7 @@ BACKENDS :: [6]Backend_Info{
 		"demo/backends/raylib",
 		DESKTOP,
 		"raylib (vendor:raylib, ships with Odin)",
+		"",
 	},
 	{
 		.opengl,
@@ -69,8 +73,17 @@ BACKENDS :: [6]Backend_Info{
 		"demo/backends/opengl",
 		DESKTOP,
 		"GLFW and OpenGL 3.3 (vendor:glfw, vendor:OpenGL)",
+		"",
 	},
-	{.dx11, "dx11", "example_backends/dx11", "demo/backends/dx11", {.Windows}, "Win32 and Direct3D 11"},
+	{
+		.dx11,
+		"dx11",
+		"example_backends/dx11",
+		"demo/backends/dx11",
+		{.Windows},
+		"Win32 and Direct3D 11",
+		"",
+	},
 	{
 		.vulkan_1_2,
 		"vulkan_1_2",
@@ -78,6 +91,7 @@ BACKENDS :: [6]Backend_Info{
 		"demo/backends/vulkan_1_2",
 		DESKTOP,
 		"the Vulkan SDK (1.2) and GLFW",
+		"",
 	},
 	{
 		.vulkan_1_3,
@@ -86,14 +100,27 @@ BACKENDS :: [6]Backend_Info{
 		"demo/backends/vulkan_1_3",
 		DESKTOP,
 		"the Vulkan SDK (1.3) and GLFW",
+		"",
 	},
-	{.sokol, "sokol", "example_backends/sokol", "demo/backends/sokol", DESKTOP, "the sokol-odin bindings"},
+	{
+		.sokol,
+		"sokol",
+		"example_backends/sokol",
+		"demo/backends/sokol",
+		DESKTOP,
+		"the vendored sokol bindings in third_party/sokol",
+		"SOKOL_DEBUG=false",
+	},
 }
 
 LIB_DIR :: "loom"
 TESTS_DIR :: "tests"
 HOST_DIR :: "tests/host"
 PLUGIN_DIR :: "tests/plugin"
+
+HOT_HOST_DIR :: "demo_hotreload/host"
+HOT_PANELS_DIR :: "demo_hotreload/panels"
+HOT_DEMO_BACKEND :: Backend_Kind.vulkan_1_3
 
 EXE :: ".exe" when ODIN_OS == .Windows else ""
 DLL :: ".dll" when ODIN_OS == .Windows else ".dylib" when ODIN_OS == .Darwin else ".so"
@@ -139,6 +166,10 @@ main :: proc() {
 			ok = build_demo(opt)
 		case .hot:
 			ok = build_hot(opt)
+		case .hot_demo:
+			ok = build_hot_demo(opt, true)
+		case .hot_panels:
+			ok = build_hot_demo(opt, false)
 		case .all:
 			ok = build_all(opt)
 	}
@@ -244,6 +275,9 @@ build_demo_for :: proc(opt: Options, b: Backend_Info) -> bool {
 
 	args := make([dynamic]string, context.temp_allocator)
 	append(&args, "odin", "build", b.demo_dir, fmt.tprintf("-out:%s", out))
+	if b.define != "" {
+		append(&args, fmt.tprintf("-define:%s", b.define))
+	}
 	append_common(&args, opt)
 	if !cmd(opt, ..args[:]) {
 		return false
@@ -286,6 +320,63 @@ build_hot :: proc(opt: Options) -> bool {
 	return true
 }
 
+build_hot_demo :: proc(opt: Options, with_host: bool) -> bool {
+	if !os.exists(HOT_HOST_DIR) || !os.exists(HOT_PANELS_DIR) {
+		fmt.eprintfln(
+			"hot demo: skipping, %s and %s are not both present",
+			HOT_HOST_DIR,
+			HOT_PANELS_DIR,
+		)
+		return true
+	}
+
+	info: Backend_Info
+	for b in BACKENDS {
+		if b.kind == HOT_DEMO_BACKEND {
+			info = b
+		}
+	}
+	if !available(info) {
+		report_skip(info)
+		return true
+	}
+	if opt.backend != .all && opt.backend != HOT_DEMO_BACKEND {
+		fmt.printfln("hot demo: -backend is ignored, the host links %s", info.name)
+	}
+	if !build_shaders(opt, info) {
+		return false
+	}
+
+	fmt.println("hot demo: building panels")
+	panels := fmt.tprintf("panels%s", DLL)
+	pargs := make([dynamic]string, context.temp_allocator)
+	append(&pargs, "odin", "build", HOT_PANELS_DIR, "-build-mode:dll")
+	append(&pargs, fmt.tprintf("-out:%s", join(opt.out, panels)))
+	append_common(&pargs, opt)
+	if !cmd(opt, ..pargs[:]) {
+		return false
+	}
+
+	if !with_host {
+		return true
+	}
+
+	fmt.println("hot demo: building host")
+	host := fmt.tprintf("demo_hot%s", EXE)
+	hargs := make([dynamic]string, context.temp_allocator)
+	append(&hargs, "odin", "build", HOT_HOST_DIR)
+	append(&hargs, fmt.tprintf("-out:%s", join(opt.out, host)))
+	append_common(&hargs, opt)
+	if !cmd(opt, ..hargs[:]) {
+		return false
+	}
+
+	if opt.run {
+		return exec_built(opt, host)
+	}
+	return true
+}
+
 build_all :: proc(opt: Options) -> bool {
 	if !build_tests(opt) {
 		return false
@@ -293,7 +384,13 @@ build_all :: proc(opt: Options) -> bool {
 	o := opt
 	o.backend = .all
 	o.run = false
-	return build_demo(o)
+	if !build_demo(o) {
+		return false
+	}
+	if !build_hot(o) {
+		return false
+	}
+	return build_hot_demo(o, true)
 }
 
 available :: proc(b: Backend_Info) -> bool {
