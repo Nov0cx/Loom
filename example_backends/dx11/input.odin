@@ -317,14 +317,12 @@ poll_input :: proc(b: ^Backend) -> ui.Input {
 
 	b.dpi = window_dpi(b, b.main.hwnd)
 	cw, ch := client_size(b.main.hwnd)
-
-	wr: win.RECT
-	win.GetWindowRect(b.main.hwnd, &wr)
+	origin := client_origin(b.main.hwnd)
 
 	out := ui.Input {
 		dt             = clamp(dt, 0, 0.1),
 		viewport       = {f32(cw) / b.dpi, f32(ch) / b.dpi},
-		window_pos     = {f32(wr.left), f32(wr.top)},
+		window_pos     = origin,
 		dpi            = b.dpi,
 		mouse          = client_mouse(b.main.hwnd) / b.dpi,
 		wheel          = w.wheel,

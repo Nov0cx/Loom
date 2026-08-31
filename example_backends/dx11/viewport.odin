@@ -110,8 +110,8 @@ vp_set_rect :: proc(h: ui.Viewport_Handle, rect: ui.Rect, user: rawptr) {
 	win.SetWindowPos(
 		v.hwnd,
 		nil,
-		i32(rect.x),
-		i32(rect.y),
+		i32(rect.x) + r.left,
+		i32(rect.y) + r.top,
 		r.right - r.left,
 		r.bottom - r.top,
 		win.SWP_NOZORDER | win.SWP_NOACTIVATE,
@@ -142,8 +142,8 @@ vp_poll :: proc(h: ui.Viewport_Handle, user: rawptr) -> ui.Viewport_Events {
 
 	w := adopt_window(b, v.hwnd)
 
-	wr: win.RECT
-	win.GetWindowRect(v.hwnd, &wr)
+	origin := client_origin(v.hwnd)
+	cw, ch := client_size(v.hwnd)
 
 	cursor: win.POINT
 	win.GetCursorPos(&cursor)
@@ -158,12 +158,7 @@ vp_poll :: proc(h: ui.Viewport_Handle, user: rawptr) -> ui.Viewport_Events {
 		keys_pressed   = w.keys_pressed,
 		mods           = current_mods(),
 		text           = take_text(w),
-		rect           = {
-			f32(wr.left),
-			f32(wr.top),
-			f32(wr.right - wr.left),
-			f32(wr.bottom - wr.top),
-		},
+		rect           = {origin.x, origin.y, f32(cw), f32(ch)},
 		focused        = win.GetForegroundWindow() == v.hwnd,
 		has_mouse      = win.WindowFromPoint(cursor) == v.hwnd,
 		closed         = w.closed,

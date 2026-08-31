@@ -78,8 +78,8 @@ create_viewport_window :: proc(b: ^Backend, title: string, rect: ui.Rect) -> win
 		win.utf8_to_wstring(CLASS_NAME),
 		win.utf8_to_wstring(title),
 		style,
-		i32(rect.x),
-		i32(rect.y),
+		i32(rect.x) + r.left,
+		i32(rect.y) + r.top,
 		r.right - r.left,
 		r.bottom - r.top,
 		nil,
@@ -99,6 +99,15 @@ client_size :: proc(hwnd: win.HWND) -> (int, int) {
 		return 0, 0
 	}
 	return int(r.right - r.left), int(r.bottom - r.top)
+}
+
+@(private)
+client_origin :: proc(hwnd: win.HWND) -> ui.Vec2 {
+	p: win.POINT
+	if !win.ClientToScreen(hwnd, &p) {
+		return {}
+	}
+	return {f32(p.x), f32(p.y)}
 }
 
 @(private)
