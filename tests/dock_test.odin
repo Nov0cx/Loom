@@ -278,6 +278,12 @@ test_dock_splitter_drag_moves_the_ratio :: proc(t: ^testing.T) {
 	dock_frames(&r, {"A", "B"}, 1)
 
 	testing.expect(t, sp.root.ratio > 0.6, "dragging right grows the first child")
+
+	// The release must give the pointer back. A capture that stays sends each
+	// later hit to the splitter, thus no other widget answers the mouse.
+	testing.expect_value(t, ctx.capture_id, ui.Id(0))
+	testing.expect_value(t, ctx.drag_id, ui.Id(0))
+	testing.expect(t, !ctx.drag_active, "the drag stops at the release")
 }
 
 @(test)
@@ -317,6 +323,12 @@ test_dock_splitter_drag_clamps_to_min_panel :: proc(t: ^testing.T) {
 		"the trailing child never shrinks past min_panel",
 	)
 	testing.expect(t, sp.root.ratio <= 1 - 100 / avail + 0.01, "the ratio is clamped, not the rect")
+
+	// The release must give the pointer back. A capture that stays sends each
+	// later hit to the splitter, thus no other widget answers the mouse.
+	testing.expect_value(t, ctx.capture_id, ui.Id(0))
+	testing.expect_value(t, ctx.drag_id, ui.Id(0))
+	testing.expect(t, !ctx.drag_active, "the drag stops at the release")
 }
 
 // ---- drag to dock ----

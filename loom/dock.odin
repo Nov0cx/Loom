@@ -894,9 +894,12 @@ dock_splitter :: proc(
 	it.node.viewport = n.viewport
 
 	g := state_of(it.node, Dock_Grab)
+	// @Note: The element has `.Draggable`, thus `press_left` holds the pointer
+	// with an implicit capture, and that capture goes away on mouse up. A call
+	// of `capture_mouse` here makes the capture explicit. `step_mouse` then
+	// keeps it after the release, and no hit test runs again.
 	if it.pressed {
 		g.ratio = n.ratio
-		capture_mouse(it.id)
 	}
 	if !it.dragging {
 		return

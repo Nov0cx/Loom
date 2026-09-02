@@ -138,6 +138,22 @@ step_mouse :: proc(ctx: ^Context, hit: Id) {
 		}
 	}
 
+	// The host can lose the message of a button that goes up. An example is a
+	// capture that another program takes. `capture_id` would then stay, and
+	// `recompute_states` gives each hit to that one widget for ever. Thus an
+	// explicit capture goes away when no button is down and no press and no
+	// drag is open.
+	//
+	// @Note: A widget that wants the mouse with no button down must take the
+	// capture again in each frame.
+	if ctx.capture_id != 0 &&
+	   !ctx.capture_implicit &&
+	   ctx.input.mouse_down == {} &&
+	   ctx.press_id[.Left] == 0 &&
+	   ctx.drag_id == 0 {
+		ctx.capture_id = 0
+	}
+
 	if ctx.drag_id != 0 && .Left in ctx.input.mouse_down {
 		if ctx.drag_active {
 			ctx.drag_delta = delta

@@ -1406,3 +1406,36 @@ clipped :: proc(ctx: ^ui.Context, p: ^Clip_Probe, allocator := context.allocator
 clip_free :: proc(p: ^Clip_Probe) {
 	delete(p.buf)
 }
+
+@(test)
+test_an_explicit_capture_goes_away_with_no_button :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	target :: ui.Element {
+		key   = "target",
+		flags = {.Clickable},
+		props = {w = ui.Px(50), h = ui.Px(50)},
+	}
+
+	// The node must come again in each frame. A capture of a node that the tree
+	// lost goes away by another path, thus that case proves nothing.
+	rig_open(&r)
+	id := ui.leaf(target).id
+	ui.end_frame()
+
+	// The widget takes an explicit capture while no button is down. A lost
+	// message of a button that goes up leaves the same state.
+	rig_open(&r)
+	ui.leaf(target)
+	ui.capture_mouse(id)
+	ui.end_frame()
+	testing.expect_value(t, ctx.capture_id, id)
+
+	rig_open(&r)
+	ui.leaf(target)
+	ui.end_frame()
+	testing.expect_value(t, ctx.capture_id, ui.Id(0))
+}
