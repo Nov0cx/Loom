@@ -21,6 +21,7 @@ Backend :: struct {
 	path_a:   [dynamic]rl.Vector2,
 	path_b:   [dynamic]rl.Vector2,
 	scratch:  [dynamic]byte,
+	key_evs:  [dynamic]ui.Key_Event,
 	text_buf: [64]byte,
 	text_len: int,
 	dpi:      f32,
@@ -39,6 +40,7 @@ init :: proc(b: ^Backend, opts: Options = {}) -> ui.Backend {
 	b.path_a = make([dynamic]rl.Vector2, 0, 64)
 	b.path_b = make([dynamic]rl.Vector2, 0, 64)
 	b.scratch = make([dynamic]byte, 0, 256)
+	b.key_evs = make([dynamic]ui.Key_Event, 0, 32)
 
 	b.dpi = opts.dpi > 0 ? opts.dpi : 1
 	b.faces[0] = {ascent = 0.75, descent = -0.25}
@@ -74,6 +76,7 @@ destroy :: proc(b: ^Backend) {
 	delete(b.path_a)
 	delete(b.path_b)
 	delete(b.scratch)
+	delete(b.key_evs)
 	b^ = {}
 }
 

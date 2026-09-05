@@ -28,6 +28,10 @@ render :: proc(b: ^Backend, list: ui.Draw_List) {
 			draw_text(b, v)
 		case ui.Cmd_Image:
 			draw_image(b, v)
+		case ui.Cmd_Line:
+			rl.DrawLineEx({v.a.x, v.a.y}, {v.b.x, v.b.y}, v.width, rlc(v.color))
+		case ui.Cmd_Poly:
+			draw_poly(b, v)
 		case ui.Cmd_Push_Clip:
 			push_clip(b, rlr(v.rect))
 		case ui.Cmd_Pop_Clip:
@@ -101,6 +105,15 @@ paint_at :: proc(p: ui.Paint, x, y: f32, box: rl.Rectangle) -> rl.Color {
 			cx, cy := box.x + box.width * 0.5, box.y + box.height * 0.5
 			rr := max(box.width, box.height) * 0.5
 			t = rr > 0 ? math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) / rr : 0
+		case .Bilinear:
+			if len(v.stops) < 4 {
+				return rlc(v.stops[0].color)
+			}
+			u := box.width > 0 ? clamp((x - box.x) / box.width, 0, 1) : 0
+			w := box.height > 0 ? clamp((y - box.y) / box.height, 0, 1) : 0
+			top := mix_color(v.stops[0].color, v.stops[1].color, u)
+			bot := mix_color(v.stops[3].color, v.stops[2].color, u)
+			return rlc(mix_color(top, bot, w))
 		}
 		t = clamp(t, 0, 1)
 		lo := v.stops[0]
@@ -115,6 +128,22 @@ paint_at :: proc(p: ui.Paint, x, y: f32, box: rl.Rectangle) -> rl.Color {
 		return rlc(lo.color)
 	}
 	return {0, 0, 0, 0}
+}
+
+// A convex polygon as one fan. A concave outline comes out wrong, which is why
+// the command is documented as convex.
+@(private)
+draw_poly :: proc(b: ^Backend, cmd: ui.Cmd_Poly) {
+	if len(cmd.points) < 3 || cmd.color[3] == 0 {
+		return
+	}
+	col := rlc(cmd.color)
+	a := rl.Vector2{cmd.points[0].x, cmd.points[0].y}
+	for i in 1 ..< len(cmd.points) - 1 {
+		p1 := rl.Vector2{cmd.points[i].x, cmd.points[i].y}
+		p2 := rl.Vector2{cmd.points[i + 1].x, cmd.points[i + 1].y}
+		rl.DrawTriangle(a, p1, p2, col)
+	}
 }
 
 @(private)

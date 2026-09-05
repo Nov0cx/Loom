@@ -20,6 +20,7 @@ cmd_counts :: proc(list: ui.Draw_List) -> (rects, texts, images, pushes, pops, c
 			pops += 1
 		case ui.Cmd_Custom:
 			customs += 1
+		case ui.Cmd_Line, ui.Cmd_Poly:
 		}
 	}
 	return

@@ -77,6 +77,7 @@ Context :: struct {
 	capture_id:        Id,
 	capture_implicit:  bool,
 	keys_eaten:        Key_Set,
+	key_events:        []Key_Event,
 	press_id:          [Mouse_Button]Id,
 	press_pos:         [Mouse_Button]Vec2,
 	pressed_id:        [Mouse_Button]Id,
@@ -98,6 +99,7 @@ Context :: struct {
 	click_count:       int,
 	prev_mouse:        Vec2,
 	prev_keys:         Key_Set,
+	prev_hovered_id:   Id,
 	have_input:        bool,
 	time:              f64,
 	cursor:            Cursor,
@@ -221,6 +223,7 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 		virtual.arena_free_all(&ctx.frame_arena)
 	}
 	ctx.input = input
+	ingest_keys(ctx)
 	ctx.keys_eaten = {}
 	ctx.draw_list = {}
 	ctx.text_hits = 0

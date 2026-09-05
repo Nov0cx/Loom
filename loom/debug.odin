@@ -231,6 +231,19 @@ dump_cmd :: proc(w: Writer, cmd: Draw_Command) {
 		if c.radius != {} {
 			fmt.wprintf(w, " r=(%v,%v,%v,%v)", c.radius.tl, c.radius.tr, c.radius.br, c.radius.bl)
 		}
+	case Cmd_Line:
+		fmt.wprintf(w, "line(%v,%v,%v,%v) w=%v ", c.a.x, c.a.y, c.b.x, c.b.y, c.width)
+		dump_color(w, c.color)
+	case Cmd_Poly:
+		io.write_string(w, "poly(")
+		for pt, i in c.points {
+			if i > 0 {
+				io.write_string(w, " ")
+			}
+			fmt.wprintf(w, "%v,%v", pt.x, pt.y)
+		}
+		io.write_string(w, ") ")
+		dump_color(w, c.color)
 	case Cmd_Push_Clip:
 		fmt.wprintf(w, "push_clip(%v,%v,%v,%v)", c.rect.x, c.rect.y, c.rect.w, c.rect.h)
 		if c.radius != {} {

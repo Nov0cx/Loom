@@ -33,6 +33,17 @@ Cmd_Image :: struct {
 	radius: Radius,
 }
 
+Cmd_Line :: struct {
+	a, b:  Vec2,
+	width: f32,
+	color: Color,
+}
+
+Cmd_Poly :: struct {
+	points: []Vec2,
+	color:  Color,
+}
+
 Cmd_Push_Clip :: struct {
 	rect:   Rect,
 	radius: Radius,
@@ -50,6 +61,8 @@ Draw_Command :: union {
 	Cmd_Rect,
 	Cmd_Text,
 	Cmd_Image,
+	Cmd_Line,
+	Cmd_Poly,
 	Cmd_Push_Clip,
 	Cmd_Pop_Clip,
 	Cmd_Custom,
@@ -407,8 +420,10 @@ emit_entry :: proc(e: ^Emitter, entry: Paint_Entry) {
 	}
 
 	emit_image(e, n, entry.alpha)
+	emit_paint(e, n, false, entry.alpha)
 	emit_runs(e, n, entry.clip, entry.alpha)
 	emit_custom(e, n)
+	emit_paint(e, n, true, entry.alpha)
 }
 
 @(private)
@@ -486,9 +501,6 @@ emit_runs :: proc(e: ^Emitter, n: ^Node, clip: Rect, alpha: f32) {
 		col = c
 	}
 	col = fold_color(col, alpha)
-	if col[3] == 0 {
-		return
-	}
 
 	st := text_style(e.ctx, p)
 	lh := st.line_h > 0 ? st.line_h : st.size
@@ -502,6 +514,13 @@ emit_runs :: proc(e: ^Emitter, n: ^Node, clip: Rect, alpha: f32) {
 		if r.pos.y < top || r.pos.y > bot {
 			continue
 		}
+		rc := col
+		if c, ok := r.color.?; ok {
+			rc = fold_color(c, alpha)
+		}
+		if rc[3] == 0 {
+			continue
+		}
 		emit_cmd(
 			e,
 			Cmd_Text {
@@ -510,7 +529,7 @@ emit_runs :: proc(e: ^Emitter, n: ^Node, clip: Rect, alpha: f32) {
 				font = st.font,
 				size = st.size,
 				spacing = st.spacing,
-				color = col,
+				color = rc,
 			},
 		)
 	}

@@ -37,6 +37,24 @@ Viewport_Ops :: struct {
 Backend :: struct {
 	measure_run:   proc(font: Font, size: f32, text: string, spacing: f32, user: rawptr) -> f32,
 	font_metrics:  proc(font: Font, size: f32, user: rawptr) -> Font_Metrics,
+	// Optional. A host with a shaped-run cache answers a caret query more
+	// cheaply, and more correctly across a ligature, than a prefix re-measure.
+	// Loom falls back to prefix measurement when either is nil.
+	offset_x:      proc(
+		font: Font,
+		size: f32,
+		text: string,
+		spacing, tab_origin: f32,
+		at: int,
+		user: rawptr,
+	) -> f32,
+	index_at:      proc(
+		font: Font,
+		size: f32,
+		text: string,
+		spacing, tab_origin, x: f32,
+		user: rawptr,
+	) -> int,
 	set_cursor:    proc(c: Cursor, user: rawptr),
 	clipboard_get: proc(user: rawptr) -> string,
 	clipboard_set: proc(text: string, user: rawptr),

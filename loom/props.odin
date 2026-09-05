@@ -79,6 +79,9 @@ Gradient :: struct {
 	kind:  enum u8 {
 		Linear,
 		Radial,
+		// Four stops, one per corner: top left, top right, bottom right,
+		// bottom left. `t` is unused.
+		Bilinear,
 	},
 	angle: f32,
 	stops: []Stop,
@@ -130,6 +133,8 @@ Props :: struct {
 	color:          Maybe(Color),
 	line_height:    f32,
 	letter_spacing: f32,
+	tab_size:       f32,
+	tab_origin:     f32,
 	text_align:     Text_Align,
 	text_wrap:      Text_Wrap,
 	cursor:         Cursor,
@@ -157,6 +162,8 @@ Prop :: enum u8 {
 	Font_Size,
 	Line_Height,
 	Letter_Spacing,
+	Tab_Size,
+	Tab_Origin,
 }
 
 Prop_Set :: bit_set[Prop;u32]
@@ -212,6 +219,8 @@ PROP_TABLE := [Prop]Prop_Info {
 	.Font_Size      = {offset_of(Props, font_size), size_of(f32), .F32},
 	.Line_Height    = {offset_of(Props, line_height), size_of(f32), .F32},
 	.Letter_Spacing = {offset_of(Props, letter_spacing), size_of(f32), .F32},
+	.Tab_Size       = {offset_of(Props, tab_size), size_of(f32), .F32},
+	.Tab_Origin     = {offset_of(Props, tab_origin), size_of(f32), .F32},
 }
 
 Mode_Prop :: enum u8 {
@@ -256,7 +265,7 @@ MODE_TABLE := [Mode_Prop]Mode_Info {
 	.Cursor     = {offset_of(Props, cursor), size_of(Cursor)},
 }
 
-INHERITED_PROPS :: Prop_Set{.Color, .Font_Size, .Line_Height, .Letter_Spacing}
+INHERITED_PROPS :: Prop_Set{.Color, .Font_Size, .Line_Height, .Letter_Spacing, .Tab_Size}
 
 INHERITED_MODES :: Mode_Set{.Font, .Text_Align, .Text_Wrap, .Cursor}
 

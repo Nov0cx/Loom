@@ -15,7 +15,7 @@ Version :: struct {
 	major, minor: u32,
 }
 
-VERSION :: Version{0, 1}
+VERSION :: Version{0, 2}
 
 rgb :: proc(r, g, b: u8) -> Color {
 	return {r, g, b, 255}

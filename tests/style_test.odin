@@ -668,7 +668,7 @@ test_animating_tracks_the_clocks :: proc(t: ^testing.T) {
 @(test)
 test_props_field_count_is_locked :: proc(t: ^testing.T) {
 	names := reflect.struct_field_names(ui.Props)
-	testing.expect_value(t, len(names), 34)
+	testing.expect_value(t, len(names), 36)
 }
 
 @(test)
@@ -708,6 +708,8 @@ test_every_field_merges_from_a_variant :: proc(t: ^testing.T) {
 		color          = WHITE,
 		line_height    = 1.6,
 		letter_spacing = 0.5,
+		tab_size       = 28,
+		tab_origin     = 4,
 		text_align     = .Justify,
 		text_wrap      = .Ellipsis,
 		cursor         = .Grabbing,
@@ -745,6 +747,8 @@ test_every_field_merges_from_a_variant :: proc(t: ^testing.T) {
 	testing.expect_value(t, p.color, full.color)
 	testing.expect_value(t, p.line_height, full.line_height)
 	testing.expect_value(t, p.letter_spacing, full.letter_spacing)
+	testing.expect_value(t, p.tab_size, full.tab_size)
+	testing.expect_value(t, p.tab_origin, full.tab_origin)
 	testing.expect_value(t, p.text_align, full.text_align)
 	testing.expect_value(t, p.text_wrap, full.text_wrap)
 	testing.expect_value(t, p.cursor, full.cursor)

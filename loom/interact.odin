@@ -340,6 +340,7 @@ recompute_states :: proc(ctx: ^Context) {
 	}
 
 	clear_frame_results(ctx)
+	ctx.prev_hovered_id = ctx.hovered_id
 
 	if ctx.root != nil {
 		hit, scroller: Id
@@ -468,4 +469,71 @@ set_clipboard_text :: proc(text: string) {
 		return
 	}
 	ctx.cfg.backend.clipboard_set(text, ctx.cfg.backend.user)
+}
+
+// Copies the frame's key stream into the frame arena, so a reader can mark an
+// event consumed, and folds it into the level sets. A host that fills only the
+// stream still answers `key_pressed` and `key_held`.
+@(private)
+ingest_keys :: proc(ctx: ^Context) {
+	ctx.key_events = nil
+	if len(ctx.input.key_events) == 0 {
+		return
+	}
+
+	evs := make([]Key_Event, len(ctx.input.key_events), ctx.frame_allocator)
+	copy(evs, ctx.input.key_events)
+	ctx.key_events = evs
+
+	down := ctx.input.keys_down
+	pressed := ctx.input.keys_pressed
+	for ev in evs {
+		if ev.key == .None {
+			continue
+		}
+		switch ev.action {
+		case .Press, .Repeat:
+			down += {ev.key}
+			pressed += {ev.key}
+		case .Release:
+			down -= {ev.key}
+		}
+	}
+	ctx.input.keys_down = down
+	ctx.input.keys_pressed = pressed
+}
+
+// The ordered key stream of this frame. The slice is live: set `consumed` on an
+// event to hide it from every later reader. Read it before the tree to get a
+// global hook, or inside a widget to get the rest.
+keys :: proc() -> []Key_Event {
+	return ctx_of().key_events
+}
+
+// Consumes and reports the first open press or repeat of `k` whose modifiers
+// match `m` exactly. A release is never taken.
+take_key :: proc(k: Key, m: Mod_Set = {}) -> bool {
+	ctx := ctx_of()
+	for &ev in ctx.key_events {
+		if ev.consumed || ev.key != k || ev.mods != m || ev.action == .Release {
+			continue
+		}
+		ev.consumed = true
+		return true
+	}
+	return false
+}
+
+// Reports whether the focus is on this node or inside it. This is the gate a
+// widget puts on the key stream, since the stream itself is not routed.
+focus_within :: proc(n: ^Node) -> bool {
+	if n == nil {
+		return false
+	}
+	ctx := ctx_of()
+	f := node_alive(ctx, ctx.focus_id)
+	if f == nil {
+		return false
+	}
+	return is_in_subtree(ctx, n.id, f)
 }

@@ -177,18 +177,40 @@ input_style :: proc(ctx: ^Context, n: ^Node) -> Text_Style {
 }
 
 @(private)
-caret_x :: proc(ctx: ^Context, style: Text_Style, s: string, at: int) -> f32 {
+caret_x_st :: proc(ctx: ^Context, style: Text_Style, s: string, at: int) -> f32 {
 	i := rune_align(s, at)
 	if i <= 0 {
 		return 0
+	}
+	if ox := ctx.cfg.backend.offset_x; ox != nil {
+		return ox(
+			style.font,
+			style.size,
+			s,
+			style.spacing,
+			style.tab_org,
+			i,
+			ctx.cfg.backend.user,
+		)
 	}
 	return measure_run(ctx, style, s[:i])
 }
 
 @(private)
-offset_at :: proc(ctx: ^Context, style: Text_Style, s: string, x: f32) -> int {
+offset_at_st :: proc(ctx: ^Context, style: Text_Style, s: string, x: f32) -> int {
 	if len(s) == 0 || x <= 0 {
 		return 0
+	}
+	if ia := ctx.cfg.backend.index_at; ia != nil {
+		return ia(
+			style.font,
+			style.size,
+			s,
+			style.spacing,
+			style.tab_org,
+			x,
+			ctx.cfg.backend.user,
+		)
 	}
 	starts := rune_starts(ctx, s)
 	lo, hi := 0, len(starts) - 1
@@ -452,7 +474,7 @@ move_caret :: proc(st: ^Input_State, to: int, keep: bool) {
 @(private)
 hit_offset :: proc(op: ^Input_Ops, style: Text_Style, view_x: f32) -> int {
 	ctx := op.ctx
-	return offset_at(ctx, style, buf_text(op.buf), ctx.input.mouse.x - view_x + op.st.scroll_x)
+	return offset_at_st(ctx, style, buf_text(op.buf), ctx.input.mouse.x - view_x + op.st.scroll_x)
 }
 
 input :: proc(
@@ -519,7 +541,7 @@ input :: proc(
 	st.caret = rune_align(s, st.caret)
 	st.anchor = rune_align(s, st.anchor)
 
-	cx := caret_x(ctx, style, s, st.caret)
+	cx := caret_x_st(ctx, style, s, st.caret)
 	if view_w > 0 {
 		total := measure_run(ctx, style, s)
 		if cx - st.scroll_x < 0 {
@@ -541,8 +563,8 @@ input :: proc(
 	}
 
 	lo, hi := sel_range(st)
-	sel_lo := caret_x(ctx, style, s, lo)
-	sel_hi := caret_x(ctx, style, s, hi)
+	sel_lo := caret_x_st(ctx, style, s, lo)
+	sel_hi := caret_x_st(ctx, style, s, hi)
 	empty := len(s) == 0
 
 	begin(

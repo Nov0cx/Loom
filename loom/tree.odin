@@ -25,6 +25,9 @@ Element :: struct {
 	key:         string,
 	flags:       Flags,
 	text:        string,
+	// Colour runs over `text`, by byte. They must be sorted and must not
+	// overlap; a byte no span covers takes the node's own colour.
+	spans:       []Text_Span,
 	texture:     Texture,
 	uv:          Rect,
 	tint:        Color,
@@ -57,6 +60,7 @@ Node :: struct {
 	draw_user:                 rawptr,
 	first_frame:               bool,
 	lay:                       ^Layout,
+	paint:                     [dynamic]Paint_Op,
 	scroll_vel:                Vec2,
 	scroll_want:               Vec2,
 	persist:                   ^Persist,
@@ -198,6 +202,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 	n.first_child = nil
 	n.next = nil
 	n.lay = nil
+	n.paint = nil
 	n.persist = nil
 	n.viewport = nil
 	return n
@@ -248,10 +253,15 @@ interaction :: proc(ctx: ^Context, n: ^Node) -> Interaction {
 		state = n.state,
 	}
 	it.hovered = ctx.hovered_id == n.id
+	it.hover_entered = it.hovered && ctx.prev_hovered_id != n.id
+	it.hover_exited = !it.hovered && ctx.prev_hovered_id == n.id
 	it.focused = ctx.focus_id == n.id
 	it.pressed = ctx.pressed_id[.Left] == n.id
 	it.released = ctx.released_id[.Left] == n.id
 	it.clicked = ctx.clicked_id == n.id
+	if it.clicked {
+		it.click_count = ctx.click_count
+	}
 	it.right_clicked = ctx.right_clicked_id == n.id
 	it.middle_clicked = ctx.middle_clicked_id == n.id
 	it.double_clicked = ctx.double_clicked_id == n.id

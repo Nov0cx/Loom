@@ -1,6 +1,7 @@
 package loom
 
 import "core:hash"
+import "core:math"
 import "core:slice"
 import "core:strings"
 import "core:unicode/utf8"
@@ -16,6 +17,8 @@ Text_Style :: struct {
 	align:   Text_Align,
 	line_h:  f32,
 	ascent:  f32,
+	tab_w:   f32,
+	tab_org: f32,
 }
 
 @(private)
@@ -25,6 +28,8 @@ Text_Key :: struct {
 	spacing: f32,
 	max_w:   f32,
 	wrap:    Text_Wrap,
+	tab_w:   f32,
+	tab_org: f32,
 	hash:    u64,
 	n:       int,
 }
@@ -54,10 +59,18 @@ Text_Entry :: struct {
 	last_used: u64,
 }
 
+// A colour run over a node's text, by byte.
+Text_Span :: struct {
+	start, end: int,
+	color:      Color,
+}
+
 Text_Run :: struct {
 	pos:   Vec2,
 	text:  string,
 	width: f32,
+	// Unset when the run takes the node's own colour.
+	color: Maybe(Color),
 }
 
 text_runs :: proc(n: ^Node) -> []Text_Run {
@@ -77,6 +90,8 @@ text_style :: proc(ctx: ^Context, p: ^Props) -> Text_Style {
 		wrap    = p.text_wrap,
 		align   = p.text_align,
 		ascent  = m.ascent,
+		tab_w   = p.tab_size,
+		tab_org = p.tab_origin,
 	}
 	st.line_h = p.line_height > 0 ? p.line_height * p.font_size : m.ascent - m.descent + m.line_gap
 	return st
@@ -101,8 +116,19 @@ text_ascent :: proc(ctx: ^Context, p: ^Props) -> f32 {
 	return text_style(ctx, p).ascent
 }
 
+// The next tab stop at or after `x`, on the grid of `size` that starts at
+// `origin`. A tab always advances, so a pen already on a stop moves to the next.
 @(private)
-measure_run :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
+tab_stop :: proc(x, origin, size: f32) -> f32 {
+	if size <= 0 {
+		return x
+	}
+	steps := math.floor((x - origin) / size) + 1
+	return origin + steps * size
+}
+
+@(private)
+measure_plain :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
 	if s == "" {
 		return 0
 	}
@@ -112,6 +138,39 @@ measure_run :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
 	}
 	ctx.text_measures += 1
 	return mr(st.font, st.size, s, st.spacing, ctx.cfg.backend.user)
+}
+
+// Measures `s` with every tab advanced to its stop. The grid is anchored at the
+// node's own left edge, and `tab_origin` is the pen x at which `s` starts, so
+// a caller that measures a line in pieces keeps every piece on one grid.
+@(private)
+measure_tabbed :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
+	x := st.tab_org
+	i := 0
+	for i < len(s) {
+		j := i
+		for j < len(s) && s[j] != '\t' {
+			j += 1
+		}
+		x += measure_plain(ctx, st, s[i:j])
+		if j >= len(s) {
+			break
+		}
+		x = tab_stop(x, 0, st.tab_w)
+		i = j + 1
+	}
+	return x - st.tab_org
+}
+
+@(private)
+measure_run :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
+	if s == "" {
+		return 0
+	}
+	if st.tab_w > 0 {
+		return measure_tabbed(ctx, st, s)
+	}
+	return measure_plain(ctx, st, s)
 }
 
 @(private)
@@ -164,6 +223,8 @@ text_key :: proc(st: Text_Style, text: string, max_w: f32) -> Text_Key {
 		spacing = st.spacing,
 		max_w = max_w,
 		wrap = st.wrap,
+		tab_w = st.tab_w,
+		tab_org = st.tab_org,
 		hash = hash.fnv64a(transmute([]u8)text),
 		n = len(text),
 	}
@@ -439,6 +500,103 @@ rune_starts :: proc(ctx: ^Context, text: string) -> []int {
 	return out[:]
 }
 
+// The colour covering byte `at`, and the next boundary at or before `limit`.
+// `cursor` walks forward over the spans, so a whole line costs one pass.
+@(private)
+span_at :: proc(spans: []Text_Span, cursor: ^int, at, limit: int) -> (col: Maybe(Color), edge: int) {
+	edge = limit
+	for cursor^ < len(spans) && spans[cursor^].end <= at {
+		cursor^ += 1
+	}
+	if cursor^ >= len(spans) {
+		return
+	}
+	s := spans[cursor^]
+	if s.start > at {
+		edge = min(edge, s.start)
+		return
+	}
+	col = s.color
+	edge = min(edge, s.end)
+	return
+}
+
+// Appends the runs of `text[from:to]`, cut at every tab and every colour-span
+// edge, and reports the pen x after them. `grid` is the x the stops are anchored
+// at, the left edge of the line. `width` skips the measure when it is known.
+@(private)
+push_text_run :: proc(
+	ctx: ^Context,
+	out: ^[dynamic]Text_Run,
+	st: Text_Style,
+	spans: []Text_Span,
+	text: string,
+	from, to: int,
+	pen, y: f32,
+	grid: f32,
+	width: f32 = -1,
+) -> f32 {
+	if st.tab_w <= 0 && len(spans) == 0 {
+		if to <= from {
+			return pen
+		}
+		w := width >= 0 ? width : measure_plain(ctx, st, text[from:to])
+		append(out, Text_Run{pos = {pen, y}, text = text[from:to], width = w})
+		return pen + w
+	}
+
+	cursor := 0
+	x := pen
+	i := from
+	for i < to {
+		j := to
+		if st.tab_w > 0 {
+			for k := i; k < j; k += 1 {
+				if text[k] == '\t' {
+					j = k
+					break
+				}
+			}
+		}
+		col, edge := span_at(spans, &cursor, i, j)
+		j = min(j, edge)
+
+		if j > i {
+			w := measure_plain(ctx, st, text[i:j])
+			append(out, Text_Run{pos = {x, y}, text = text[i:j], width = w, color = col})
+			x += w
+		}
+		if j < to && st.tab_w > 0 && text[j] == '\t' {
+			x = tab_stop(x, grid, st.tab_w)
+			j += 1
+		}
+		i = j
+	}
+	return x
+}
+
+// The pen x of byte `at` inside `text`, measured from the start of the run.
+caret_x :: proc(text: string, at: int, props: Props = {}, loc := #caller_location) -> f32 {
+	ctx := ctx_of(loc)
+	p := props
+	if n := current(); n != nil {
+		inherit_props(&p, &n.computed)
+	}
+	inherit_props(&p, &ctx.cfg.root)
+	return caret_x_st(ctx, text_style(ctx, &p), text, at)
+}
+
+// The byte index of `text` nearest pixel `x`, measured from the start of the run.
+offset_at :: proc(text: string, x: f32, props: Props = {}, loc := #caller_location) -> int {
+	ctx := ctx_of(loc)
+	p := props
+	if n := current(); n != nil {
+		inherit_props(&p, &n.computed)
+	}
+	inherit_props(&p, &ctx.cfg.root)
+	return offset_at_st(ctx, text_style(ctx, &p), text, x)
+}
+
 @(private)
 build_runs :: proc(ctx: ^Context, n: ^Node, origin: Vec2, box: Vec2) -> []Text_Run {
 	st := text_style(ctx, &n.computed)
@@ -479,9 +637,18 @@ build_runs :: proc(ctx: ^Context, n: ^Node, origin: Vec2, box: Vec2) -> []Text_R
 		}
 
 		if !split {
-			append(
+			push_text_run(
+				ctx,
 				&out,
-				Text_Run{pos = {x, y}, text = e.text[ln.start:ln.end], width = ln.width},
+				st,
+				n.el.spans,
+				e.text,
+				ln.start,
+				ln.end,
+				x,
+				y,
+				x,
+				ln.width,
 			)
 			continue
 		}
@@ -493,9 +660,26 @@ build_runs :: proc(ctx: ^Context, n: ^Node, origin: Vec2, box: Vec2) -> []Text_R
 
 		cx := x
 		for w in row {
-			t := w.start < 0 ? ELLIPSIS : e.text[w.start:w.end]
-			append(&out, Text_Run{pos = {cx, y}, text = t, width = w.width})
-			cx += w.width + gap
+			if w.start < 0 {
+				append(&out, Text_Run{pos = {cx, y}, text = ELLIPSIS, width = w.width})
+				cx += w.width + gap
+				continue
+			}
+			cx =
+				push_text_run(
+					ctx,
+					&out,
+					st,
+					n.el.spans,
+					e.text,
+					w.start,
+					w.end,
+					cx,
+					y,
+					x,
+					w.width,
+				) +
+				gap
 		}
 	}
 
