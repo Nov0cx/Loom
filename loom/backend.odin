@@ -91,6 +91,8 @@ Config :: struct {
 	scroll_damping:    f32,
 	scroll_to_dur:     f32,
 	no_scroll_inertia: bool,
+	// Hides every tooltip. A host that lets the user turn them off sets it.
+	no_tooltips:       bool,
 	frame_allocator:   runtime.Allocator,
 }
 

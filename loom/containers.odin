@@ -152,7 +152,12 @@ scroll_bar :: proc(
 	}
 }
 
-@(private)
+// Shows or hides every tooltip.
+set_tooltips_enabled :: proc(on: bool) {
+	ctx_of().cfg.no_tooltips = !on
+}
+
+// Puts the scroll of `n` at `v` on `ax`, stopping any animation on the way there.
 set_scroll :: proc(n: ^Node, ax: Axis, v: f32) {
 	if ax == .X {
 		n.scroll.x = v
@@ -242,7 +247,7 @@ tooltip :: proc(
 ) -> Interaction {
 	ctx := ctx_of(loc)
 	a := node_alive(ctx, for_id)
-	if a == nil || text == "" {
+	if a == nil || text == "" || ctx.cfg.no_tooltips {
 		return {}
 	}
 

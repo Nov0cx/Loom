@@ -455,6 +455,11 @@ mouse_pos :: proc() -> Vec2 {
 	return ctx_of().input.mouse
 }
 
+// The window the frame is being built for, in pixels.
+viewport :: proc() -> Vec2 {
+	return ctx_of().input.viewport
+}
+
 clipboard_text :: proc() -> string {
 	ctx := ctx_of()
 	if ctx.cfg.backend.clipboard_get == nil {
