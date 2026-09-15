@@ -666,3 +666,19 @@ test_relative_still_participates_in_flow :: proc(t: ^testing.T) {
 	expect_rect(t, rel.node, 0, 0, 200, 40)
 	expect_rect(t, after.node, 0, 40, 200, 40)
 }
+
+@(test)
+test_merge_element_carries_spans :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	spans := []ui.Text_Span{{start = 0, end = 3, color = ui.Color{255, 0, 0, 255}}}
+
+	open_frame()
+	it := ui.label("abcdef", {key = "l", spans = spans})
+	ui.end_frame()
+
+	testing.expect_value(t, len(it.node.el.spans), 1)
+	testing.expect_value(t, it.node.el.spans[0].color, ui.Color{255, 0, 0, 255})
+}

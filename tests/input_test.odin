@@ -1439,3 +1439,125 @@ test_an_explicit_capture_goes_away_with_no_button :: proc(t: ^testing.T) {
 	ui.end_frame()
 	testing.expect_value(t, ctx.capture_id, ui.Id(0))
 }
+
+wheel_pane :: proc() -> (pane: ui.Interaction, content: f32) {
+	ui.scope({key = "root", props = {w = ui.Px(800), h = ui.Px(600)}})
+	pane = ui.begin(
+		{
+			key = "pane",
+			flags = {.Clip, .Clickable, .Scroll_Y, .Wheel},
+			props = {w = ui.Px(200), h = ui.Px(100), dir = .Column},
+		},
+	)
+	ui.leaf({key = "sizer", props = {w = ui.Px(0), h = ui.Px(300)}})
+	ui.end()
+	content = 300
+	return
+}
+
+@(test)
+test_wheel_flag_reports_the_raw_delta_and_scrolls_nothing :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx, ui.Config{scroll_speed = 40, no_scroll_inertia = true})
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, 50, 50)
+	rig_open(&r)
+	wheel_pane()
+	ui.end_frame()
+
+	spin(&r, 0, 1)
+	rig_open(&r)
+	pane, _ := wheel_pane()
+	ui.end_frame()
+
+	testing.expect_value(t, pane.wheel.y, f32(1))
+	testing.expect_value(t, pane.node.scroll.y, f32(0))
+}
+
+@(test)
+test_wheel_flag_reports_with_no_overflow :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx, ui.Config{scroll_speed = 40, no_scroll_inertia = true})
+	defer ui.destroy(&ctx)
+
+	short :: proc() -> ui.Interaction {
+		ui.scope({key = "root", props = {w = ui.Px(800), h = ui.Px(600)}})
+		it := ui.begin(
+			{
+				key = "pane",
+				flags = {.Clip, .Clickable, .Wheel},
+				props = {w = ui.Px(200), h = ui.Px(100), dir = .Column},
+			},
+		)
+		ui.leaf({key = "sizer", props = {w = ui.Px(0), h = ui.Px(10)}})
+		ui.end()
+		return it
+	}
+
+	r: Rig
+	move(&r, 50, 50)
+	rig_open(&r)
+	short()
+	ui.end_frame()
+
+	spin(&r, 0, -2)
+	rig_open(&r)
+	it := short()
+	ui.end_frame()
+
+	testing.expect_value(t, it.wheel.y, f32(-2))
+}
+
+@(test)
+test_wheel_flag_bubbles_from_an_inner_scrollable :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx, ui.Config{scroll_speed = 40, no_scroll_inertia = true})
+	defer ui.destroy(&ctx)
+
+	nested :: proc() -> (outer, inner: ui.Interaction) {
+		ui.scope({key = "root", props = {w = ui.Px(800), h = ui.Px(600)}})
+		outer = ui.begin(
+			{
+				key = "pane",
+				flags = {.Clip, .Wheel},
+				props = {w = ui.Px(400), h = ui.Px(300), dir = .Column},
+			},
+		)
+		inner = ui.begin(
+			{
+				key = "list",
+				flags = {.Scroll_Y},
+				props = {w = ui.Px(200), h = ui.Px(100), dir = .Column},
+			},
+		)
+		ui.leaf({key = "sizer", props = {w = ui.Px(0), h = ui.Px(140)}})
+		ui.end()
+		ui.end()
+		return
+	}
+
+	r: Rig
+	move(&r, 50, 50)
+	rig_open(&r)
+	nested()
+	ui.end_frame()
+
+	spin(&r, 0, 1)
+	rig_open(&r)
+	outer, inner := nested()
+	ui.end_frame()
+
+	testing.expect_value(t, inner.node.scroll.y, f32(40))
+	testing.expect(t, outer.wheel.y == 0, "the list took it before the pane saw it")
+
+	// The list is at its end, so the next turn bubbles out to the pane.
+	spin(&r, 0, 1)
+	rig_open(&r)
+	outer, inner = nested()
+	ui.end_frame()
+
+	testing.expect_value(t, inner.node.scroll.y, ui.scroll_max(inner.node).y)
+	testing.expect_value(t, outer.wheel.y, f32(1))
+}

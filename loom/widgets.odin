@@ -28,6 +28,9 @@ merge_element :: proc(dst: ^Element, over: Element, loc := #caller_location) {
 	if over.text != "" {
 		dst.text = over.text
 	}
+	if len(over.spans) > 0 {
+		dst.spans = over.spans
+	}
 	if over.texture != 0 {
 		dst.texture = over.texture
 	}
@@ -104,9 +107,9 @@ button :: proc(text: string, el: Element = {}, loc := #caller_location) -> Inter
 		props = {
 			w = FIT,
 			h = FIT,
-			justify = .Center,
-			align = .Center,
 			pad = BTN_PAD,
+			text_align = .Center,
+			text_align_v = .Center,
 			bg = t.accent,
 			color = t.accent_text,
 			radius = rad(BTN_RADIUS),

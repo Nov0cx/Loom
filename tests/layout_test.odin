@@ -631,3 +631,25 @@ test_demo_shell_layout :: proc(t: ^testing.T) {
 	expect_rect(t, slider, 800 - 20 - 120, 19, 120, 16)
 	expect_rect(t, rows, 220, 55, 580, VIEWPORT.y - 55)
 }
+
+@(test)
+test_scrolled_content_is_not_an_intrinsic_size :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	ui.begin({key = "col", props = {w = ui.Px(200), h = ui.Px(100), dir = .Column}})
+	head := ui.leaf({key = "head", props = {w = ui.STRETCH, h = ui.Px(30)}}).node
+	list := ui.begin(
+		{key = "list", flags = {.Scroll_Y}, props = {w = ui.STRETCH, h = ui.Grow(1)}},
+	)
+	ui.leaf({key = "long", props = {w = ui.STRETCH, h = ui.Px(1000)}})
+	ui.end()
+	ui.end()
+	ui.end_frame()
+
+	testing.expect_value(t, head.rect.h, f32(30))
+	testing.expect_value(t, list.node.rect.h, f32(70))
+	testing.expect_value(t, list.node.content.y, f32(1000))
+}

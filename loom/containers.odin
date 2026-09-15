@@ -31,16 +31,13 @@ Tooltip_Timer :: struct {
 }
 
 scroll :: proc(el: Element = {}, loc := #caller_location) -> Interaction {
-	ctx := ctx_of(loc)
 	e := Element {
 		flags = {.Clip, .Scroll_Y},
 		props = {w = Grow(1), h = Grow(1), dir = .Column, position = .Relative},
 	}
 	merge_element(&e, el, loc)
-
-	it := begin(e, loc)
-	scroll_bars(ctx, it.node, loc)
-	return it
+	// `begin` lays the bars; a second call here would build the same ids twice.
+	return begin(e, loc)
 }
 
 @(private)
@@ -295,6 +292,7 @@ tooltip :: proc(
 			border = {width = all(1), color = t.border},
 			shadow = {offset = {0, 2}, blur = 12, color = t.shadow},
 			text_wrap = .Words,
+			text_align_v = .Center,
 			opacity = prev != nil ? 1 : 0,
 		},
 	}

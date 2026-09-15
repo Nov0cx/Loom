@@ -439,3 +439,80 @@ fmt_index :: proc(prefix: string, i: int) -> string {
 	strings.write_int(&b, i)
 	return strings.to_string(b)
 }
+
+@(test)
+test_text_align_v_positions_runs :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	texted(&ctx, {})
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	ui.begin({key = "box", props = {w = ui.Px(200), h = ui.Px(40), dir = .Row}})
+	start := ui.leaf({key = "s", text = "ab", props = {h = ui.STRETCH}}).node
+	center := ui.leaf(
+		{key = "c", text = "ab", props = {h = ui.STRETCH, text_align_v = .Center}},
+	).node
+	tail := ui.leaf({key = "e", text = "ab", props = {h = ui.STRETCH, text_align_v = .End}}).node
+	ui.end()
+	ui.end_frame()
+
+	// line_h is 16 in a box of 40, and a run's y is the baseline, ascent 12
+	// under the top of the block.
+	testing.expect_value(t, ui.text_runs(start)[0].pos.y, f32(12))
+	testing.expect_value(t, ui.text_runs(center)[0].pos.y, f32(24))
+	testing.expect_value(t, ui.text_runs(tail)[0].pos.y, f32(36))
+}
+
+@(test)
+test_text_align_v_moves_the_whole_block :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	texted(&ctx, {})
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	n := label_in(
+		{w = ui.Px(200), h = ui.Px(100)},
+		"aa\nbb",
+		{h = ui.STRETCH, text_align_v = .Center},
+	)
+	ui.end_frame()
+
+	runs := ui.text_runs(n)
+	testing.expect_value(t, len(runs), 2)
+	// Two lines of 16 in a box of 100 start 34 down.
+	testing.expect_value(t, runs[0].pos.y, f32(34 + 12))
+	testing.expect_value(t, runs[1].pos.y, f32(34 + 16 + 12))
+}
+
+// Thor's backend reports a line gap, which hangs under the last line. A test
+// backend without one cannot tell the ink apart from the line box.
+gapped_backend :: proc() -> ui.Backend {
+	b := fake_backend()
+	b.font_metrics = proc(f: ui.Font, size: f32, user: rawptr) -> ui.Font_Metrics {
+		s := size > 0 ? size : 16
+		return {ascent = s * 0.75, descent = s * -0.25, line_gap = 6}
+	}
+	return b
+}
+
+@(test)
+test_text_align_v_ignores_the_trailing_line_gap :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	ui.init(&ctx, ui.Config{backend = gapped_backend(), root = {font_size = 16}})
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	ui.begin({key = "box", props = {w = ui.Px(200), h = ui.Px(40), dir = .Row}})
+	center := ui.leaf(
+		{key = "c", text = "ab", props = {h = ui.STRETCH, text_align_v = .Center}},
+	).node
+	tail := ui.leaf({key = "e", text = "ab", props = {h = ui.STRETCH, text_align_v = .End}}).node
+	ui.end()
+	ui.end_frame()
+
+	// One line of ink is 16 in a box of 40, so it starts 12 down and the
+	// baseline is 12 under that. The 6 of line gap belongs to no side.
+	testing.expect_value(t, ui.text_runs(center)[0].pos.y, f32(12 + 12))
+	// The End case puts the descender on the bottom edge, not the leading.
+	testing.expect_value(t, ui.text_runs(tail)[0].pos.y, f32(40 - 4))
+}

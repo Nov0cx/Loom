@@ -28,6 +28,15 @@ Dock_Mode :: enum u8 {
 	Detachable,
 }
 
+// Per-panel behaviour, given to `panel`. A `panel` call states the flags again
+// each frame, thus a saved layout does not keep them.
+Dock_Panel_Flag :: enum u8 {
+	No_Tab, // no tab in the bar; a node with no other listed tab draws no bar
+	Fixed, // does not drag out, and takes no dropped tab
+}
+
+Dock_Panel_Flags :: distinct bit_set[Dock_Panel_Flag;u8]
+
 Dock_Side :: enum u8 {
 	Left,
 	Right,
@@ -61,6 +70,7 @@ Dock_Config :: struct {
 Dock_Tab :: struct {
 	title: string,
 	open:  ^bool,
+	flags: Dock_Panel_Flags,
 	seen:  u64,
 }
 
@@ -165,6 +175,7 @@ panel :: proc(
 	dock: Dock_Id,
 	title: string,
 	open: ^bool = nil,
+	flags: Dock_Panel_Flags = {},
 	el: Element = {},
 	loc := #caller_location,
 ) -> bool {
@@ -192,12 +203,16 @@ panel :: proc(
 	tab := &tn.tabs[idx]
 	tab.open = open
 	tab.seen = ctx.frame_index
+	if tab.flags != flags {
+		tab.flags = flags
+		mark_dirty(ctx)
+	}
 
 	if idx != tn.active {
 		return false
 	}
 
-	r := dock_body_rect(tn.space, tn)
+	r := dock_body_rect(ctx, tn.space, tn)
 	if tn.viewport != nil {
 		tn.viewport.dock = tn
 	}
@@ -259,7 +274,7 @@ dock_split :: proc(dock: Dock_Id, target: string, side: Dock_Side, ratio: f32) -
 	return first.id, second.id
 }
 
-dock_panel :: proc(dock: Dock_Id, title: string, into: Dock_Id) {
+dock_panel :: proc(dock: Dock_Id, title: string, into: Dock_Id, flags: Dock_Panel_Flags = {}) {
 	ctx := ctx_of()
 	sp := dock_space_by_handle(ctx, dock)
 	if sp == nil || title == "" {
@@ -272,13 +287,20 @@ dock_panel :: proc(dock: Dock_Id, title: string, into: Dock_Id) {
 
 	if src, idx := dock_find_tab(sp, title); src != nil {
 		if src == dest {
+			src.tabs[idx].flags = flags
+			mark_dirty(ctx)
 			return
 		}
 		tab := dock_take_tab(ctx, src, idx)
+		tab.flags = flags
 		dock_add_tab(ctx, dest, tab)
 		dock_collapse(ctx, sp, src)
 	} else {
-		dock_add_tab(ctx, dest, Dock_Tab{title = strings.clone(title, ctx.allocator)})
+		dock_add_tab(
+			ctx,
+			dest,
+			Dock_Tab{title = strings.clone(title, ctx.allocator), flags = flags},
+		)
 	}
 	mark_dirty(ctx)
 }
@@ -575,7 +597,10 @@ dock_insert_default :: proc(
 	^Dock_Node,
 	int,
 ) {
-	dest := dock_largest_tabs(sp.root)
+	dest := dock_largest_tabs(sp.root, true)
+	if dest == nil {
+		dest = dock_largest_tabs(sp.root)
+	}
 	if dest == nil {
 		dest = dock_ensure_root(ctx, sp)
 	}
@@ -587,15 +612,15 @@ dock_insert_default :: proc(
 }
 
 @(private)
-dock_largest_tabs :: proc(n: ^Dock_Node) -> ^Dock_Node {
+dock_largest_tabs :: proc(n: ^Dock_Node, skip_fixed := false) -> ^Dock_Node {
 	if n == nil {
 		return nil
 	}
 	if n.kind == .Tabs {
-		return n
+		return skip_fixed && dock_node_fixed(n) ? nil : n
 	}
-	a := dock_largest_tabs(n.children[0])
-	b := dock_largest_tabs(n.children[1])
+	a := dock_largest_tabs(n.children[0], skip_fixed)
+	b := dock_largest_tabs(n.children[1], skip_fixed)
 	if a == nil {
 		return b
 	}
@@ -603,6 +628,20 @@ dock_largest_tabs :: proc(n: ^Dock_Node) -> ^Dock_Node {
 		return a
 	}
 	return a.rect.w * a.rect.h >= b.rect.w * b.rect.h ? a : b
+}
+
+// A node that holds a fixed panel. It keeps its place: it takes no dropped tab.
+@(private)
+dock_node_fixed :: proc(n: ^Dock_Node) -> bool {
+	if n == nil || n.kind != .Tabs {
+		return false
+	}
+	for tab in n.tabs {
+		if .Fixed in tab.flags {
+			return true
+		}
+	}
+	return false
 }
 
 @(private)
@@ -657,14 +696,31 @@ dock_place :: proc(sp: ^Dock_Space, n: ^Dock_Node, r: Rect) {
 }
 
 @(private)
-dock_body_rect :: proc(sp: ^Dock_Space, n: ^Dock_Node) -> Rect {
-	h := min(sp.cfg.tab_height, n.rect.h)
+dock_body_rect :: proc(ctx: ^Context, sp: ^Dock_Space, n: ^Dock_Node) -> Rect {
+	h := dock_bar_height(ctx, sp, n)
 	return {n.rect.x, n.rect.y + h, n.rect.w, max(n.rect.h - h, 0)}
+}
+
+// The tab bar height of a node. Zero when the node lists no tab.
+@(private)
+dock_bar_height :: proc(ctx: ^Context, sp: ^Dock_Space, n: ^Dock_Node) -> f32 {
+	for tab in n.tabs {
+		if dock_tab_listed(ctx, tab) {
+			return min(sp.cfg.tab_height, n.rect.h)
+		}
+	}
+	return 0
 }
 
 @(private)
 dock_tab_visible :: proc(ctx: ^Context, tab: Dock_Tab) -> bool {
 	return tab.seen != 0 && tab.seen + 1 >= ctx.frame_index
+}
+
+// A tab the bar shows. A `.No_Tab` panel has none.
+@(private)
+dock_tab_listed :: proc(ctx: ^Context, tab: Dock_Tab) -> bool {
+	return dock_tab_visible(ctx, tab) && .No_Tab not_in tab.flags
 }
 
 @(private)
@@ -749,7 +805,7 @@ dock_tab_bar :: proc(
 	if n.rect.w <= 0 || n.rect.h <= 0 {
 		return
 	}
-	h := min(sp.cfg.tab_height, n.rect.h)
+	h := dock_bar_height(ctx, sp, n)
 	if h <= 0 {
 		return
 	}
@@ -759,7 +815,7 @@ dock_tab_bar :: proc(
 	defer pop_id(loc)
 
 	bar := dock_fixed(DOCK_BAR_KEY, {n.rect.x, n.rect.y, n.rect.w, h})
-	bar.flags = {.Clip, .Scroll_X}
+	bar.flags = {.Clip, .Scroll_X, .No_Bars}
 	bar.props.dir = .Row
 	bar.props.gap = {DOCK_TAB_GAP, 0}
 	bar.props.bg = t.raised
@@ -769,7 +825,7 @@ dock_tab_bar :: proc(
 	bit.node.viewport = n.viewport
 
 	for i := 0; i < len(n.tabs); i += 1 {
-		if dock_tab_visible(ctx, n.tabs[i]) {
+		if dock_tab_listed(ctx, n.tabs[i]) {
 			dock_tab(ctx, sp, n, i, loc)
 		}
 	}
@@ -788,9 +844,14 @@ dock_tab :: proc(
 	tab := n.tabs[idx]
 	on := idx == n.active
 
+	ef := Flags{.Clickable}
+	if .Fixed not_in tab.flags {
+		ef += {.Draggable}
+	}
+
 	e := Element {
 		key = tab.title,
-		flags = {.Clickable, .Draggable},
+		flags = ef,
 		props = {
 			w = FIT,
 			h = STRETCH,
@@ -1079,7 +1140,7 @@ dock_zone_scan :: proc(ctx: ^Context, sp: ^Dock_Space) {
 
 	r := dock_desktop_rect(ctx, hit)
 	z := dock_zone_of(r, p)
-	if z == .None {
+	if z == .None || (z == .Center && dock_node_fixed(hit)) {
 		return
 	}
 	d.space = sp
@@ -1212,6 +1273,9 @@ dock_drop_zone :: proc(ctx: ^Context, d: ^Dock_Drag, idx: int) {
 	sp := d.space
 	target := d.target
 	if sp == nil || target == nil {
+		return
+	}
+	if d.zone == .Center && dock_node_fixed(target) {
 		return
 	}
 	if d.from == target && len(d.from.tabs) == 1 {
@@ -1524,7 +1588,10 @@ dock_rebuild :: proc(ctx: ^Context, sp: ^Dock_Space) {
 
 @(private)
 dock_absorb :: proc(ctx: ^Context, sp: ^Dock_Space, n: ^Dock_Node) {
-	dest := dock_largest_tabs(sp.root)
+	dest := dock_largest_tabs(sp.root, true)
+	if dest == nil {
+		dest = dock_largest_tabs(sp.root)
+	}
 	if dest == nil {
 		dest = dock_ensure_root(ctx, sp)
 	}

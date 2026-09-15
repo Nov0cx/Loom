@@ -745,3 +745,208 @@ test_dock_detached_panel_keeps_its_scroll :: proc(t: ^testing.T) {
 	testing.expect(t, after == sc, "the panel keeps its node identity across the detach")
 	testing.expect(t, near(after.scroll.y, 40), "per-node scroll survives the detach")
 }
+
+// ---- panel flags ----
+
+Dock_Decl :: struct {
+	title: string,
+	flags: ui.Dock_Panel_Flags,
+}
+
+dock_flag_frame :: proc(decls: []Dock_Decl, cfg: ui.Dock_Config = {}) -> ui.Dock_Id {
+	d := ui.dockspace(DOCK_ID, cfg, {props = {w = ui.Px(DOCK_W), h = ui.Px(DOCK_H)}})
+	for it in decls {
+		if ui.panel(d, it.title, nil, it.flags) {
+			ui.leaf({key = "body", props = {w = ui.STRETCH, h = ui.Px(20)}})
+			ui.end_panel()
+		}
+	}
+	return d
+}
+
+dock_flag_frames :: proc(
+	r: ^Rig,
+	decls: []Dock_Decl,
+	count: int,
+	cfg: ui.Dock_Config = {},
+) -> ui.Dock_Id {
+	d: ui.Dock_Id
+	for _ in 0 ..< count {
+		rig_open(r)
+		d = dock_flag_frame(decls, cfg)
+		ui.end_frame()
+	}
+	return d
+}
+
+dock_flag_drag_to :: proc(r: ^Rig, decls: []Dock_Decl, from, to: ui.Vec2) {
+	move(r, from.x, from.y)
+	press(r)
+	dock_flag_frames(r, decls, 1)
+
+	move(r, to.x, to.y)
+	dock_flag_frames(r, decls, 1)
+
+	release(r)
+	dock_flag_frames(r, decls, 2)
+}
+
+dock_bar_node :: proc(sp: ^ui.Dock_Space, dn: ^ui.Dock_Node) -> ^ui.Node {
+	seed := ui.hash_int(sp.node.id, i64(dn.id))
+	return ui.find(ui.hash_string(seed, "loom.dockbar"))
+}
+
+@(test)
+test_dock_no_tab_panel_takes_the_whole_node :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	dock_flag_frames(&r, {{"A", {.No_Tab}}}, 3)
+
+	body: ^ui.Node
+	rig_open(&r)
+	d := ui.dockspace(DOCK_ID, {}, {props = {w = ui.Px(DOCK_W), h = ui.Px(DOCK_H)}})
+	if ui.panel(d, "A", nil, {.No_Tab}) {
+		body = ui.current()
+		ui.end_panel()
+	}
+	ui.end_frame()
+
+	sp := dock_space_of(&ctx)
+	testing.expect(t, dock_bar_node(sp, sp.root) == nil, "a lone no-tab panel draws no tab bar")
+	testing.expect(t, dock_tab_node(sp, sp.root, "A") == nil, "a no-tab panel emits no tab")
+	testing.expect(t, body != nil, "a no-tab panel still opens")
+	expect_rect(t, body, 0, 0, DOCK_W, DOCK_H)
+}
+
+@(test)
+test_dock_no_tab_panel_keeps_the_bar_of_its_neighbour :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	dock_flag_frames(&r, {{"A", {.No_Tab}}, {"B", {}}}, 3)
+
+	sp := dock_space_of(&ctx)
+	testing.expect_value(t, len(sp.root.tabs), 2)
+	testing.expect(t, dock_bar_node(sp, sp.root) != nil, "a listed tab brings the bar back")
+	testing.expect(t, dock_tab_node(sp, sp.root, "A") == nil, "the no-tab panel stays out of it")
+	testing.expect(t, dock_tab_node(sp, sp.root, "B") != nil, "the other panel keeps its tab")
+}
+
+@(test)
+test_dock_fixed_tab_does_not_drag :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	decls := []Dock_Decl{{"A", {.Fixed}}, {"B", {}}}
+	dock_flag_frames(&r, decls, 3)
+
+	sp := dock_space_of(&ctx)
+	tab := dock_tab_node(sp, sp.root, "A")
+	testing.expect(t, tab != nil, "a fixed panel that has a name keeps its tab")
+
+	body := ui.Rect{0, ui.DOCK_TAB_H, DOCK_W, DOCK_H - ui.DOCK_TAB_H}
+	dock_flag_drag_to(
+		&r,
+		decls,
+		dock_center(tab.rect),
+		{body.x + body.w - 10, body.y + body.h * 0.5},
+	)
+
+	testing.expect(t, !ctx.dock_drag.active, "a fixed tab never starts a drag")
+	testing.expect_value(t, sp.root.kind, ui.Dock_Kind.Tabs)
+	testing.expect_value(t, len(sp.root.tabs), 2)
+}
+
+@(test)
+test_dock_fixed_node_refuses_a_center_drop :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	decls := []Dock_Decl{{"A", {.Fixed}}, {"B", {}}}
+	d := dock_flag_frames(&r, {{"A", {.Fixed}}}, 3)
+
+	rig_open(&r)
+	_, right := ui.dock_split(d, "", .Right, 0.5)
+	ui.dock_panel(d, "B", right)
+	ui.end_frame()
+	dock_flag_frames(&r, decls, 3)
+
+	sp := dock_space_of(&ctx)
+	left := sp.root.children[0]
+	tab := dock_tab_node(sp, sp.root.children[1], "B")
+	testing.expect(t, tab != nil, "the dragged tab exists")
+
+	dock_flag_drag_to(&r, decls, dock_center(tab.rect), dock_center(left.rect))
+
+	testing.expect_value(t, sp.root.kind, ui.Dock_Kind.Split)
+	testing.expect_value(t, len(sp.root.children[0].tabs), 1)
+	testing.expect_value(t, len(sp.root.children[1].tabs), 1)
+}
+
+@(test)
+test_dock_fixed_node_takes_an_edge_drop :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	decls := []Dock_Decl{{"A", {.Fixed}}, {"B", {}}}
+	d := dock_flag_frames(&r, {{"A", {.Fixed}}}, 3)
+
+	rig_open(&r)
+	_, right := ui.dock_split(d, "", .Right, 0.5)
+	ui.dock_panel(d, "B", right)
+	ui.end_frame()
+	dock_flag_frames(&r, decls, 3)
+
+	sp := dock_space_of(&ctx)
+	left := sp.root.children[0]
+	tab := dock_tab_node(sp, sp.root.children[1], "B")
+
+	to := ui.Vec2{left.rect.x + 6, left.rect.y + left.rect.h * 0.5}
+	dock_flag_drag_to(&r, decls, dock_center(tab.rect), to)
+
+	testing.expect_value(t, sp.root.kind, ui.Dock_Kind.Split)
+	testing.expect_value(t, sp.root.dir, ui.Direction.Row)
+	testing.expect_value(t, len(sp.root.children[0].tabs), 1)
+	testing.expect_value(t, sp.root.children[0].tabs[0].title, "B")
+	testing.expect_value(t, sp.root.children[1].tabs[0].title, "A")
+}
+
+@(test)
+test_dock_new_panel_skips_a_fixed_node :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	d := dock_flag_frames(&r, {{"A", {.Fixed}}}, 3)
+
+	rig_open(&r)
+	_, right := ui.dock_split(d, "", .Right, 0.2)
+	ui.dock_panel(d, "B", right)
+	ui.end_frame()
+	dock_flag_frames(&r, {{"A", {.Fixed}}, {"B", {}}}, 2)
+
+	sp := dock_space_of(&ctx)
+	testing.expect(
+		t,
+		sp.root.children[0].rect.w > sp.root.children[1].rect.w,
+		"the fixed node is the larger one",
+	)
+
+	dock_flag_frames(&r, {{"A", {.Fixed}}, {"B", {}}, {"C", {}}}, 2)
+
+	testing.expect_value(t, len(sp.root.children[0].tabs), 1)
+	testing.expect_value(t, len(sp.root.children[1].tabs), 2)
+	testing.expect_value(t, sp.root.children[1].tabs[1].title, "C")
+}

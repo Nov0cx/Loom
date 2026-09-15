@@ -83,6 +83,23 @@ measures a line in pieces keeps every piece on one grid.
 that fills the optional `offset_x` and `index_at` answers them from its own shaped-run cache, which
 is both cheaper and correct across a ligature; without them Loom measures prefixes.
 
+`Props.text_align` places the text across the node and `Props.text_align_v` places it down the node.
+Both inherit. `justify` and `align` place a node's *children*, so they say nothing about its own
+text: a label in a box taller than one line needs `text_align_v = .Center`.
+
+## Scrolling
+
+A node scrolls when it has `.Scroll_X` / `.Scroll_Y` or an `overflow` of `.Scroll` / `.Auto`, and it
+gets its scrollbars from that alone — `scroll()` is only the usual set of props around it. The bars
+are an absolute pass-through overlay, out of flow, so they never enter `content`. `.No_Bars` keeps
+the scrolling and drops them.
+
+The wheel goes to the innermost scrollable node under the pointer with room left, and bubbles up
+when there is none. A node with `.Wheel` instead takes the unscaled delta in `Interaction.wheel` and
+scrolls nothing — for a view that owns its own offset, such as a virtualised text editor. It reports
+even when nothing would move, so a Ctrl + wheel at the end of the content still arrives. Its own
+offset then moves only through `set_scroll(node, axis, v)`.
+
 ## Painting
 
 `paint_rect`, `paint_line` and `paint_poly` put a shape in the current node's own slot of the draw

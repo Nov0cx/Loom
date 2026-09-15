@@ -52,6 +52,12 @@ Text_Align :: enum u8 {
 	Justify,
 }
 
+Text_Align_V :: enum u8 {
+	Start,
+	Center,
+	End,
+}
+
 Text_Wrap :: enum u8 {
 	Words,
 	None,
@@ -136,6 +142,7 @@ Props :: struct {
 	tab_size:       f32,
 	tab_origin:     f32,
 	text_align:     Text_Align,
+	text_align_v:   Text_Align_V,
 	text_wrap:      Text_Wrap,
 	cursor:         Cursor,
 	clear:          Prop_Set,
@@ -236,6 +243,7 @@ Mode_Prop :: enum u8 {
 	Overflow,
 	Font,
 	Text_Align,
+	Text_Align_V,
 	Text_Wrap,
 	Cursor,
 }
@@ -249,25 +257,26 @@ Mode_Info :: struct {
 
 @(rodata)
 MODE_TABLE := [Mode_Prop]Mode_Info {
-	.Dir        = {offset_of(Props, dir), size_of(Direction)},
-	.Wrap       = {offset_of(Props, wrap), size_of(Wrap)},
-	.Justify    = {offset_of(Props, justify), size_of(Justify)},
-	.Align      = {offset_of(Props, align), size_of(Align)},
-	.Align_Self = {offset_of(Props, align_self), size_of(Align)},
-	.Order      = {offset_of(Props, order), size_of(i16)},
-	.Aspect     = {offset_of(Props, aspect), size_of(f32)},
-	.Position   = {offset_of(Props, position), size_of(Position)},
-	.Z          = {offset_of(Props, z), size_of(i16)},
-	.Overflow   = {offset_of(Props, overflow), size_of([2]Overflow)},
-	.Font       = {offset_of(Props, font), size_of(Font)},
-	.Text_Align = {offset_of(Props, text_align), size_of(Text_Align)},
-	.Text_Wrap  = {offset_of(Props, text_wrap), size_of(Text_Wrap)},
-	.Cursor     = {offset_of(Props, cursor), size_of(Cursor)},
+	.Dir          = {offset_of(Props, dir), size_of(Direction)},
+	.Wrap         = {offset_of(Props, wrap), size_of(Wrap)},
+	.Justify      = {offset_of(Props, justify), size_of(Justify)},
+	.Align        = {offset_of(Props, align), size_of(Align)},
+	.Align_Self   = {offset_of(Props, align_self), size_of(Align)},
+	.Order        = {offset_of(Props, order), size_of(i16)},
+	.Aspect       = {offset_of(Props, aspect), size_of(f32)},
+	.Position     = {offset_of(Props, position), size_of(Position)},
+	.Z            = {offset_of(Props, z), size_of(i16)},
+	.Overflow     = {offset_of(Props, overflow), size_of([2]Overflow)},
+	.Font         = {offset_of(Props, font), size_of(Font)},
+	.Text_Align   = {offset_of(Props, text_align), size_of(Text_Align)},
+	.Text_Align_V = {offset_of(Props, text_align_v), size_of(Text_Align_V)},
+	.Text_Wrap    = {offset_of(Props, text_wrap), size_of(Text_Wrap)},
+	.Cursor       = {offset_of(Props, cursor), size_of(Cursor)},
 }
 
 INHERITED_PROPS :: Prop_Set{.Color, .Font_Size, .Line_Height, .Letter_Spacing, .Tab_Size}
 
-INHERITED_MODES :: Mode_Set{.Font, .Text_Align, .Text_Wrap, .Cursor}
+INHERITED_MODES :: Mode_Set{.Font, .Text_Align, .Text_Align_V, .Text_Wrap, .Cursor}
 
 State :: enum u8 {
 	Hover,

@@ -90,7 +90,11 @@ fit_node :: proc(ctx: ^Context, n: ^Node) {
 	inner := inner_edges(p)
 	for a in Axis {
 		i := int(a)
-		v := content[i] + edge_total(inner, a)
+		// Content behind a scroll is not an intrinsic size: a list that asked
+		// its parent for the whole document would squeeze its siblings. A node
+		// that both scrolls and fits an axis therefore measures zero on it.
+		// Clipping alone still measures: only a scroll hides the overflow.
+		v := (node_scrollable(n)[a] ? 0 : content[i]) + edge_total(inner, a)
 		if d, ok := definite_size(axis_size(p, a), 0, false); ok {
 			v = d
 		}
@@ -122,7 +126,11 @@ layout_node :: proc(ctx: ^Context, n: ^Node, known: [Axis]bool) {
 		if known[a] {
 			continue
 		}
-		v := max(used[i], text[i]) + edge_total(inner, a)
+		// Same rule as fit_node: a scrolled axis takes no size from its content.
+		v := edge_total(inner, a)
+		if !node_scrollable(n)[a] {
+			v += max(used[i], text[i])
+		}
 		n.lay.size[i] = axis_clamp(v, p, a)
 	}
 

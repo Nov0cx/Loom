@@ -501,3 +501,76 @@ test_two_tooltips_on_one_source_line_do_not_collide :: proc(t: ^testing.T) {
 tree_root :: proc() -> ui.Id {
 	return ui.hash_string(ui.hash_string(0, "loom.root"), "root")
 }
+
+// ---- bars on a node that only declares the flag ----
+
+flagged_tree :: proc(rows: int, flags: ui.Flags) -> ui.Interaction {
+	ui.scope({key = "root", props = {w = ui.Px(400), h = ui.Px(300), dir = .Column}})
+	it := ui.begin(
+		{
+			key = "sc",
+			flags = flags,
+			props = {w = ui.Px(SCROLL_W), h = ui.Px(SCROLL_H), dir = .Column},
+		},
+	)
+	for i in 0 ..< rows {
+		ui.push_id_int(i64(i))
+		ui.leaf({key = "row", props = {w = ui.STRETCH, h = ui.Px(ROW_H)}})
+		ui.pop_id()
+	}
+	ui.end()
+	return it
+}
+
+@(test)
+test_scroll_flag_alone_gets_bars :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	it: ui.Interaction
+	for _ in 0 ..< 3 {
+		open_frame()
+		it = flagged_tree(4, {.Clip, .Scroll_Y})
+		ui.end_frame()
+	}
+
+	testing.expect(t, bars_of(it.id) != nil, "no ui.scroll needed for a bar")
+
+	th := vthumb_of(it.id)
+	testing.expect(t, th != nil, "the vertical thumb exists")
+	testing.expect(t, near(th.rect.h, 48), "thumb is box/content of the padded bar")
+}
+
+@(test)
+test_no_bars_flag_suppresses_them :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	it: ui.Interaction
+	for _ in 0 ..< 3 {
+		open_frame()
+		it = flagged_tree(4, {.Clip, .Scroll_Y, .No_Bars})
+		ui.end_frame()
+	}
+
+	testing.expect(t, bars_of(it.id) == nil, "No_Bars leaves the node bare")
+	testing.expect_value(t, ui.scroll_max(it.node).y, 4 * ROW_H - SCROLL_H)
+}
+
+@(test)
+test_bars_stay_out_of_the_content_sum :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	it: ui.Interaction
+	for _ in 0 ..< 3 {
+		open_frame()
+		it = flagged_tree(4, {.Clip, .Scroll_Y})
+		ui.end_frame()
+	}
+
+	testing.expect_value(t, it.node.content.y, 4 * ROW_H)
+}

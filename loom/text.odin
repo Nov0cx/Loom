@@ -15,8 +15,10 @@ Text_Style :: struct {
 	spacing: f32,
 	wrap:    Text_Wrap,
 	align:   Text_Align,
+	align_v: Text_Align_V,
 	line_h:  f32,
 	ascent:  f32,
+	descent: f32,
 	tab_w:   f32,
 	tab_org: f32,
 }
@@ -89,7 +91,9 @@ text_style :: proc(ctx: ^Context, p: ^Props) -> Text_Style {
 		spacing = p.letter_spacing,
 		wrap    = p.text_wrap,
 		align   = p.text_align,
+		align_v = p.text_align_v,
 		ascent  = m.ascent,
+		descent = m.descent,
 		tab_w   = p.tab_size,
 		tab_org = p.tab_origin,
 	}
@@ -607,12 +611,24 @@ build_runs :: proc(ctx: ^Context, n: ^Node, origin: Vec2, box: Vec2) -> []Text_R
 
 	out := make([dynamic]Text_Run, 0, len(e.lines), ctx.frame_allocator)
 
+	// The ink is aligned, not the line box: the last line's leading hangs under
+	// the glyphs, and counting it would sit the text high by half a line gap.
+	ink := f32(len(e.lines) - 1) * st.line_h + (st.ascent - st.descent)
+	top := origin.y
+	switch st.align_v {
+	case .Start:
+	case .Center:
+		top += (box.y - ink) * 0.5
+	case .End:
+		top += box.y - ink
+	}
+
 	for ln, i in e.lines {
 		if ln.word_count == 0 {
 			continue
 		}
 
-		y := origin.y + f32(i) * st.line_h + st.ascent
+		y := top + f32(i) * st.line_h + st.ascent
 		x := origin.x
 		switch st.align {
 		case .Start:

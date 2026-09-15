@@ -11,7 +11,7 @@ node_alive :: proc(ctx: ^Context, id: Id) -> ^Node {
 
 @(private)
 hit_target :: proc(n: ^Node) -> bool {
-	if n.flags & {.Clickable, .Focusable, .Draggable, .Scroll_X, .Scroll_Y} != {} {
+	if n.flags & {.Clickable, .Focusable, .Draggable, .Scroll_X, .Scroll_Y, .Wheel} != {} {
 		return true
 	}
 	return node_scrollable(n) != {}
@@ -27,7 +27,7 @@ hit_test :: proc(ctx: ^Context, order: []Paint_Entry, p: Vec2) -> (hovered, scro
 		if .Disabled in n.state {
 			continue
 		}
-		if scroller == 0 && node_scrollable(n) != {} {
+		if scroller == 0 && (node_scrollable(n) != {} || .Wheel in n.flags) {
 			scroller = n.id
 		}
 		if hovered == 0 && .Pass_Through not_in n.flags && hit_target(n) {

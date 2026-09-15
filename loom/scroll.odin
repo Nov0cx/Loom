@@ -52,11 +52,11 @@ find_tween :: proc(n: ^Node) -> ^Scroll_Tween {
 
 @(private)
 route_wheel :: proc(ctx: ^Context) {
-	w := ctx.input.wheel
-	if .Shift in ctx.input.mods && w.x == 0 {
-		w = {w.y, 0}
+	raw := ctx.input.wheel
+	if .Shift in ctx.input.mods && raw.x == 0 {
+		raw = {raw.y, 0}
 	}
-	w *= ctx.cfg.scroll_speed
+	w := raw * ctx.cfg.scroll_speed
 	if w.x == 0 && w.y == 0 {
 		return
 	}
@@ -72,6 +72,14 @@ route_wheel :: proc(ctx: ^Context) {
 			continue
 		}
 		for n := start; n != nil; n = n.parent {
+			// A node that owns its own offset takes the wheel unscaled and
+			// scrolls nothing. It reports even when nothing would move, so a
+			// Ctrl + wheel at the end of the content still arrives.
+			if .Wheel in n.flags {
+				ctx.wheel_id[a] = n.id
+				ctx.wheel_amount[a] = raw[i]
+				break
+			}
 			if !node_scrollable(n)[a] {
 				continue
 			}

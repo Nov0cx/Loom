@@ -17,6 +17,11 @@ Flag :: enum u16 {
 	No_Anim,
 	Text_Input,
 	Persist,
+	// Takes the raw wheel into `Interaction.wheel` and scrolls nothing. For a
+	// node that owns its own offset and needs the delta even at its limit.
+	Wheel,
+	// Draws no scrollbars, however the node scrolls.
+	No_Bars,
 }
 
 Flags :: bit_set[Flag;u16]
@@ -88,6 +93,12 @@ begin :: proc(el: Element, loc := #caller_location) -> Interaction {
 
 	append(&ctx.open, Open_Entry{node = n, prev_seed = ctx.id_seed, id_depth = len(ctx.id_stack)})
 	ctx.id_seed = n.id
+
+	// The bars are the node's first children, off the same seed, and read last
+	// frame's content. A bar node is not itself scrollable, so this ends here.
+	if .No_Bars not_in n.flags && node_scrollable(n) != {} {
+		scroll_bars(ctx, n, loc)
+	}
 
 	return interaction(ctx, n)
 }

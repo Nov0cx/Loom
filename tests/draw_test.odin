@@ -600,3 +600,60 @@ test_emission_uses_only_the_frame_arena :: proc(t: ^testing.T) {
 		)
 	}
 }
+
+MENU_BG :: ui.Color{40, 44, 52, 255}
+
+// The titlebar dropdown's shape: a fixed box inside a floating backdrop.
+@(test)
+test_fixed_box_in_a_floating_backdrop_keeps_its_fill :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx, {font_size = 16})
+	defer ui.destroy(&ctx)
+
+	build :: proc() {
+		ui.begin(
+			{
+				key = "backdrop",
+				flags = {.Floating, .Clickable},
+				props = {
+					position = .Fixed,
+					inset = {0, 0, 0, 0},
+					w = ui.Grow(1),
+					h = ui.Grow(1),
+					z = 500,
+				},
+			},
+		)
+		ui.begin(
+			{
+				key = "menu-box",
+				flags = {.Clickable},
+				props = {
+					position = .Fixed,
+					inset = {l = 12, t = 36},
+					w = ui.FIT,
+					min_w = 180,
+					h = ui.FIT,
+					dir = .Column,
+					pad = ui.all(4),
+					bg = MENU_BG,
+					radius = ui.rad(6),
+					border = {width = ui.all(1), color = ui.hex(0x5A6073)},
+					shadow = {offset = {0, 4}, blur = 16, color = {0, 0, 0, 153}},
+				},
+			},
+		)
+		ui.leaf({key = "row", text = "Open File...", props = {w = ui.Grow(1), h = ui.Px(26)}})
+		ui.end()
+		ui.end()
+	}
+
+	list: ui.Draw_List
+	for _ in 0 ..< 3 {
+		open_frame()
+		build()
+		list = ui.end_frame()
+	}
+
+	testing.expect(t, rect_index(list, MENU_BG) >= 0, "the menu box emits its fill")
+}
