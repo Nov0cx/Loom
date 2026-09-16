@@ -516,3 +516,37 @@ test_text_align_v_ignores_the_trailing_line_gap :: proc(t: ^testing.T) {
 	// The End case puts the descender on the bottom edge, not the leading.
 	testing.expect_value(t, ui.text_runs(tail)[0].pos.y, f32(40 - 4))
 }
+
+@(test)
+test_fit_node_with_a_max_w_grows_for_the_wrapped_lines :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	texted(&ctx, {})
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	ui.begin({key = "box", props = {w = ui.Px(200), h = ui.Px(100)}})
+	n := ui.leaf(
+		{
+			key = "tip",
+			text = "aaaa bbbb",
+			props = {
+				w = ui.FIT,
+				h = ui.FIT,
+				max_w = 50,
+				text_wrap = .Words,
+				text_align_v = .Center,
+			},
+		},
+	).node
+	ui.end()
+	ui.end_frame()
+
+	// The natural width is 90, so the node takes its max and the text wraps.
+	// Both the height and the width must follow the wrap: a node sized for the
+	// unwrapped line would hold one line of the two it draws.
+	expect_runs(t, n, {"aaaa", "bbbb"})
+	testing.expect_value(t, n.rect.w, f32(40))
+	testing.expect_value(t, n.rect.h, f32(32))
+	testing.expect_value(t, ui.text_runs(n)[0].pos.y, f32(12))
+	testing.expect_value(t, ui.text_runs(n)[1].pos.y, f32(28))
+}

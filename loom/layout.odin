@@ -64,10 +64,17 @@ fit_node :: proc(ctx: ^Context, n: ^Node) {
 	ax := axis_of(p.dir)
 	cx := cross_axis(ax)
 	mi, ci := int(ax), int(cx)
+	inner := inner_edges(p)
 
 	content: Vec2
 	if n.el.text != "" {
 		content = measure_text_node(ctx, n, 0)
+		// A max_w cuts the natural width, and the text wrapped to it is taller.
+		// The max-content height alone is then short by the lines the wrap adds.
+		limit := axis_max(p, .X) - edge_total(inner, .X)
+		if limit > 0 && content.x > limit {
+			content = measure_text_node(ctx, n, limit)
+		}
 	}
 
 	main_sum, cross_max: f32
@@ -87,7 +94,6 @@ fit_node :: proc(ctx: ^Context, n: ^Node) {
 	content[mi] = max(content[mi], main_sum)
 	content[ci] = max(content[ci], cross_max)
 
-	inner := inner_edges(p)
 	for a in Axis {
 		i := int(a)
 		// Content behind a scroll is not an intrinsic size: a list that asked
@@ -116,7 +122,10 @@ layout_node :: proc(ctx: ^Context, n: ^Node, known: [Axis]bool) {
 
 	text: Vec2
 	if n.el.text != "" {
-		text = measure_text_node(ctx, n, known[.X] ? cb.x : 0)
+		// The wrap width is the content box on both paths: a max_w can cut the fit
+		// below the natural width, and measuring unbounded then sizes the node for
+		// a line count the draw never uses.
+		text = measure_text_node(ctx, n, cb.x)
 	}
 
 	used := arrange(ctx, n, cb, known)
