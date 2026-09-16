@@ -20,6 +20,10 @@ Flag :: enum u16 {
 	// Takes the raw wheel into `Interaction.wheel` and scrolls nothing. For a
 	// node that owns its own offset and needs the delta even at its limit.
 	Wheel,
+	// Hit-tested without being a button: a label or a chip that only wants to
+	// hover, to wear a hover style or to carry a tooltip. It takes the hit from
+	// whatever is under it, so never put one over a node that must stay clicked.
+	Hoverable,
 	// Draws no scrollbars, however the node scrolls.
 	No_Bars,
 }

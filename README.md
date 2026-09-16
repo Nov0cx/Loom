@@ -48,6 +48,11 @@ host renders Draw_List
 
 Downside is a one frame lag.
 
+Only a node that asks for the pointer is hit-tested: `.Clickable`, `.Focusable`, `.Draggable`, a
+scrolling one, `.Wheel`, or `.Hoverable`. `.Hoverable` is the one that is no button — a label or a
+chip that only wants to hover, to wear a hover style or to carry a `tooltip`. It takes the hit from
+whatever is under it, so never put one over a node that must stay clicked.
+
 ## Keys
 
 `Input.keys_down` and `Input.keys_pressed` answer "is it down", and `Input.key_events` is the ordered

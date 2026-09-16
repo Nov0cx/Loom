@@ -11,7 +11,8 @@ node_alive :: proc(ctx: ^Context, id: Id) -> ^Node {
 
 @(private)
 hit_target :: proc(n: ^Node) -> bool {
-	if n.flags & {.Clickable, .Focusable, .Draggable, .Scroll_X, .Scroll_Y, .Wheel} != {} {
+	if n.flags & {.Clickable, .Focusable, .Draggable, .Scroll_X, .Scroll_Y, .Wheel, .Hoverable} !=
+	   {} {
 		return true
 	}
 	return node_scrollable(n) != {}
