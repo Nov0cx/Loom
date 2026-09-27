@@ -413,6 +413,86 @@ test_fixed_child_uses_viewport :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_fixed_grow_fills_the_viewport :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	backdrop := ui.begin(
+		{
+			key = "backdrop",
+			props = {
+				position = .Fixed,
+				w = ui.Grow(1),
+				h = ui.Grow(1),
+				dir = .Column,
+				justify = .Center,
+				align = .Center,
+			},
+		},
+	).node
+	box := ui.leaf({key = "box", props = {w = ui.Px(300), h = ui.Px(200)}}).node
+	ui.end()
+	ui.end_frame()
+
+	expect_rect(t, backdrop, 0, 0, VIEWPORT.x, VIEWPORT.y)
+	expect_rect(t, box, (VIEWPORT.x - 300) * 0.5, (VIEWPORT.y - 200) * 0.5, 300, 200)
+}
+
+@(test)
+test_fixed_grow_respects_one_inset :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	fixed := ui.leaf(
+		{key = "fixed", props = {position = .Fixed, w = ui.Grow(1), h = ui.Px(50), inset = {l = 40}}},
+	).node
+	ui.end_frame()
+
+	expect_rect(t, fixed, 40, 0, VIEWPORT.x - 40, 50)
+}
+
+@(test)
+test_fixed_grow_respects_max :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	fixed := ui.leaf(
+		{key = "fixed", props = {position = .Fixed, w = ui.Grow(1), h = ui.Px(50), max_w = 320}},
+	).node
+	ui.end_frame()
+
+	expect_rect(t, fixed, 0, 0, 320, 50)
+}
+
+@(test)
+test_absolute_stretch_fills_positioned_ancestor :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	ui.begin(
+		{
+			key = "panel",
+			props = {w = ui.Px(400), h = ui.Px(300), position = .Absolute, inset = {l = 50, t = 40}},
+		},
+	)
+	fill := ui.leaf(
+		{key = "fill", props = {position = .Absolute, w = ui.STRETCH, h = ui.STRETCH}},
+	).node
+	ui.end()
+	ui.end_frame()
+
+	expect_rect(t, fill, 50, 40, 400, 300)
+}
+
+@(test)
 test_out_of_flow_leaves_flow_untouched :: proc(t: ^testing.T) {
 	ctx: ui.Context
 	laid(&ctx)

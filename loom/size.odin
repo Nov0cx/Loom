@@ -133,6 +133,17 @@ size_grow :: proc(s: Size) -> (f32, bool) {
 	return f32(v), ok
 }
 
+// A grow or a stretch that fills its containing block. Out of flow there are no
+// siblings to share the room with, so the share is all of it.
+@(private)
+size_fills :: proc(s: Size) -> bool {
+	if size_is_stretch(s) {
+		return true
+	}
+	_, ok := s.(Grow)
+	return ok
+}
+
 @(private)
 definite_size :: proc(s: Size, parent: f32, parent_known: bool) -> (f32, bool) {
 	switch v in s {

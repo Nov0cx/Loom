@@ -589,10 +589,11 @@ place_out_of_flow :: proc(ctx: ^Context, parent: ^Node, c: ^Node) {
 		trail := edge_trail(cp.inset, a)
 		room := i == 0 ? block.w : block.h
 
+		// Two insets state the extent, and so does a size that fills.
 		if v, ok := definite_size(axis_size(cp, a), room, true); ok {
 			c.lay.size[i] = axis_clamp(v, cp, a)
 			known[a] = true
-		} else if lead != 0 && trail != 0 {
+		} else if (lead != 0 && trail != 0) || size_fills(axis_size(cp, a)) {
 			left := room - lead - trail - edge_total(cp.margin, a)
 			c.lay.size[i] = axis_clamp(max(left, 0), cp, a)
 			known[a] = true
