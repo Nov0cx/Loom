@@ -74,6 +74,17 @@ Dock_Tab :: struct {
 	seen:  u64,
 }
 
+// Where a closed tab goes back to. `node` is the node it left, which holds only
+// while other tabs keep that node alive; `neighbour` names a tab of the sibling
+// subtree, which survives the node being freed and survives a save.
+Dock_Home :: struct {
+	node:      Dock_Id,
+	neighbour: string, // owned, "" for a tab that had no sibling
+	side:      Dock_Side,
+	ratio:     f32,
+	index:     int,
+}
+
 Dock_Node :: struct {
 	id:       Dock_Id,
 	space:    ^Dock_Space,
@@ -98,6 +109,7 @@ Dock_Space :: struct {
 	rect:     Rect,
 	frame:    u64,
 	pending:  map[string]string,
+	homes:    map[string]Dock_Home, // keys owned
 }
 
 Dock_Action_Kind :: enum u8 {
@@ -193,6 +205,9 @@ panel :: proc(
 	}
 
 	tn, idx := dock_find_anywhere(ctx, sp, title)
+	if tn == nil {
+		tn, idx = dock_home_restore(ctx, sp, title)
+	}
 	if tn == nil {
 		tn, idx = dock_insert_default(ctx, sp, title)
 	}
@@ -309,6 +324,25 @@ dock_can_detach :: proc() -> bool {
 	return has_viewports()
 }
 
+// Brings a panel's tab to the front of its node. False when the space holds no
+// such tab, thus a caller that asks before the panel's first frame retries.
+dock_focus :: proc(dock: Dock_Id, title: string) -> bool {
+	ctx := ctx_of()
+	sp := dock_space_by_handle(ctx, dock)
+	if sp == nil || title == "" {
+		return false
+	}
+	n, idx := dock_find_anywhere(ctx, sp, title)
+	if n == nil || idx < 0 {
+		return false
+	}
+	if n.active != idx {
+		n.active = idx
+		mark_dirty(ctx)
+	}
+	return true
+}
+
 @(private)
 dock_defaults :: proc(cfg: Dock_Config) -> Dock_Config {
 	out := cfg
@@ -338,6 +372,7 @@ dock_space_get :: proc(ctx: ^Context, id: string) -> ^Dock_Space {
 	sp.handle = Dock_Id(hash_string(0, id))
 	sp.detached = make([dynamic]^Dock_Node, 0, 2, ctx.allocator)
 	sp.pending = make(map[string]string, 8, ctx.allocator)
+	sp.homes = make(map[string]Dock_Home, 8, ctx.allocator)
 	ctx.docks[sp.id] = sp
 	dock_register_handler(ctx)
 	return sp
@@ -413,8 +448,109 @@ dock_close_tab :: proc(ctx: ^Context, sp: ^Dock_Space, n: ^Dock_Node, idx: int) 
 	if tab.open != nil {
 		tab.open^ = false
 	}
+	// Recorded before the node can collapse: a panel toggled off is closed, and
+	// without this its slot is gone and it comes back wherever the default puts it.
+	dock_home_record(ctx, sp, n, idx, tab.title)
 	delete(tab.title, ctx.allocator)
 	dock_collapse(ctx, sp, n)
+}
+
+@(private)
+dock_home_record :: proc(ctx: ^Context, sp: ^Dock_Space, n: ^Dock_Node, idx: int, title: string) {
+	home := Dock_Home {
+		node  = n.id,
+		index = idx,
+		ratio = 0.5,
+	}
+	if p := n.parent; p != nil {
+		first := p.children[0] == n
+		sib := first ? p.children[1] : p.children[0]
+		switch {
+		case p.dir == .Row && first:
+			home.side = .Left
+		case p.dir == .Row:
+			home.side = .Right
+		case first:
+			home.side = .Top
+		case:
+			home.side = .Bottom
+		}
+		// dock_split_node states the ratio of the fresh node, which it puts
+		// first on Left and Top and second on Right and Bottom.
+		home.ratio = first ? p.ratio : 1 - p.ratio
+		home.neighbour = dock_first_title(sib)
+	}
+	dock_home_set(ctx, sp, title, home)
+}
+
+// The title of any tab under a node, as the anchor a closed sibling splits off.
+@(private)
+dock_first_title :: proc(n: ^Dock_Node) -> string {
+	if n == nil {
+		return ""
+	}
+	if n.kind == .Tabs {
+		return len(n.tabs) > 0 ? n.tabs[0].title : ""
+	}
+	if t := dock_first_title(n.children[0]); t != "" {
+		return t
+	}
+	return dock_first_title(n.children[1])
+}
+
+@(private)
+dock_home_set :: proc(ctx: ^Context, sp: ^Dock_Space, title: string, home: Dock_Home) {
+	out := home
+	out.neighbour = home.neighbour == "" ? "" : strings.clone(home.neighbour, ctx.allocator)
+	if old, ok := sp.homes[title]; ok {
+		delete(old.neighbour, ctx.allocator)
+		sp.homes[title] = out
+		return
+	}
+	sp.homes[strings.clone(title, ctx.allocator)] = out
+}
+
+@(private)
+dock_home_clear :: proc(ctx: ^Context, sp: ^Dock_Space, title: string) {
+	home, ok := sp.homes[title]
+	if !ok {
+		return
+	}
+	key, _ := delete_key(&sp.homes, title)
+	delete(home.neighbour, ctx.allocator)
+	delete(key, ctx.allocator)
+}
+
+// Puts a closed tab back where it was: the node it left when other tabs kept
+// that alive, else a fresh split off the neighbour it sat beside.
+@(private)
+dock_home_restore :: proc(ctx: ^Context, sp: ^Dock_Space, title: string) -> (^Dock_Node, int) {
+	home, ok := sp.homes[title]
+	if !ok {
+		return nil, -1
+	}
+
+	dest: ^Dock_Node
+	if n, alive := ctx.dock_nodes[home.node];
+	   home.node != 0 && alive && n.space == sp && n.kind == .Tabs {
+		dest = n
+	} else if home.neighbour != "" {
+		if anchor, _ := dock_find_tab(sp, home.neighbour); anchor != nil {
+			first, second := dock_split_node(ctx, sp, anchor, home.side, home.ratio)
+			dest = home.side == .Left || home.side == .Top ? first : second
+		}
+	}
+	if dest == nil {
+		return nil, -1
+	}
+
+	index := clamp(home.index, 0, len(dest.tabs))
+	dock_home_clear(ctx, sp, title)
+	inject_at(&dest.tabs, index, Dock_Tab{title = strings.clone(title, ctx.allocator)})
+	// A panel the user has just asked for is the one to show.
+	dest.active = index
+	mark_dirty(ctx)
+	return dest, index
 }
 
 @(private)
@@ -1327,6 +1463,11 @@ free_docks :: proc(ctx: ^Context) {
 			delete(value, ctx.allocator)
 		}
 		delete(sp.pending)
+		for key, home in sp.homes {
+			delete(key, ctx.allocator)
+			delete(home.neighbour, ctx.allocator)
+		}
+		delete(sp.homes)
 		delete(sp.id, ctx.allocator)
 		free(sp, ctx.allocator)
 	}
@@ -1474,6 +1615,85 @@ dock_write_space :: proc(ctx: ^Context, w: Writer, sp: ^Dock_Space) {
 	for d in sp.detached {
 		dock_write_node(ctx, w, d, names)
 	}
+	// The slots of the panels that are toggled off, so a reload does not put
+	// them back wherever the default lands.
+	titles := sorted_keys(ctx, sp.homes)
+	for title in titles {
+		home := sp.homes[title]
+		ini.write_pair(
+			w,
+			dock_key(ctx, HOME_PREFIX, title),
+			fmt.aprintf(
+				"%s %s %s",
+				dock_side_name(home.side),
+				f32_string(home.ratio, ctx.frame_allocator),
+				home.neighbour,
+				allocator = ctx.frame_allocator,
+			),
+		)
+	}
+}
+
+@(private)
+HOME_PREFIX :: "home"
+
+@(private)
+dock_side_name :: proc(side: Dock_Side) -> string {
+	switch side {
+	case .Left:
+		return "left"
+	case .Right:
+		return "right"
+	case .Top:
+		return "top"
+	case .Bottom:
+		return "bottom"
+	}
+	return "bottom"
+}
+
+@(private)
+dock_side_of :: proc(s: string) -> Dock_Side {
+	switch s {
+	case "left":
+		return .Left
+	case "right":
+		return .Right
+	case "top":
+		return .Top
+	}
+	return .Bottom
+}
+
+// `home.<title> = <side> <ratio> <neighbour>`. The neighbour is last, so a title
+// holding a space still reads back whole.
+@(private)
+dock_read_homes :: proc(ctx: ^Context, sp: ^Dock_Space) {
+	prefix := strings.concatenate({HOME_PREFIX, "."}, ctx.frame_allocator)
+	for key, value in sp.pending {
+		if !strings.has_prefix(key, prefix) {
+			continue
+		}
+		title := key[len(prefix):]
+		if title == "" {
+			continue
+		}
+		side, sep, rest := strings.partition(strings.trim_space(value), " ")
+		if sep == "" {
+			continue
+		}
+		ratio, _, neighbour := strings.partition(rest, " ")
+		r, ok := parse_f32(ratio)
+		if !ok {
+			continue
+		}
+		dock_home_set(
+			ctx,
+			sp,
+			title,
+			{side = dock_side_of(side), ratio = clamp(r, 0.05, 0.95), neighbour = neighbour},
+		)
+	}
 }
 
 @(private)
@@ -1551,6 +1771,13 @@ dock_rebuild :: proc(ctx: ^Context, sp: ^Dock_Space) {
 	if !ok {
 		return
 	}
+
+	for key, home in sp.homes {
+		delete(key, ctx.allocator)
+		delete(home.neighbour, ctx.allocator)
+	}
+	clear(&sp.homes)
+	dock_read_homes(ctx, sp)
 
 	dock_free_tree(ctx, sp.root)
 	sp.root = nil
