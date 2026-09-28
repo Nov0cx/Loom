@@ -653,14 +653,21 @@ input :: proc(
 		loc,
 	)
 
+	// The caret is the em box centred in the line, not the whole line box: the
+	// leading over and under the glyphs belongs to the row, not to the cursor.
+	caret_h := style.line_h
+	if style.size > 0 && style.size < caret_h {
+		caret_h = style.size
+	}
+
 	leaf(
 		{
 			key = CARET_KEY,
 			props = {
 				position = .Absolute,
-				inset = {l = cx - st.scroll_x},
+				inset = {l = cx - st.scroll_x, t = (style.line_h - caret_h) * 0.5},
 				w = Px(CARET_W),
-				h = Pct(100),
+				h = Px(caret_h),
 				bg = t.text,
 				opacity = it.focused && blink_on ? 1 : 0,
 			},
