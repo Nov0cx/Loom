@@ -177,10 +177,17 @@ input_style :: proc(ctx: ^Context, n: ^Node) -> Text_Style {
 }
 
 @(private)
-caret_x_st :: proc(ctx: ^Context, style: Text_Style, s: string, at: int) -> f32 {
+caret_x_st :: proc(
+	ctx: ^Context,
+	style: Text_Style,
+	s: string,
+	at: int,
+	spans: []Text_Span = nil,
+) -> f32 {
 	i := rune_align(s, at)
+	lead := span_lead_before(spans, i)
 	if i <= 0 {
-		return 0
+		return lead
 	}
 	if ox := ctx.cfg.backend.offset_x; ox != nil {
 		return ox(
@@ -191,15 +198,26 @@ caret_x_st :: proc(ctx: ^Context, style: Text_Style, s: string, at: int) -> f32 
 			style.tab_org,
 			i,
 			ctx.cfg.backend.user,
-		)
+		) + lead
 	}
-	return measure_run(ctx, style, s[:i])
+	return measure_run(ctx, style, s[:i]) + lead
 }
 
 @(private)
-offset_at_st :: proc(ctx: ^Context, style: Text_Style, s: string, x: f32) -> int {
+offset_at_st :: proc(
+	ctx: ^Context,
+	style: Text_Style,
+	s: string,
+	x: f32,
+	spans: []Text_Span = nil,
+) -> int {
 	if len(s) == 0 || x <= 0 {
 		return 0
+	}
+	// A gap is not a byte, so the backend cannot answer for a line that reserves
+	// one: search the same metric the caret uses, which counts the gaps in.
+	if spans_lead_any(spans) {
+		return offset_at_leaded(ctx, style, s, x, spans)
 	}
 	if ia := ctx.cfg.backend.index_at; ia != nil {
 		return ia(
@@ -225,6 +243,36 @@ offset_at_st :: proc(ctx: ^Context, style: Text_Style, s: string, x: f32) -> int
 	if lo + 1 < len(starts) {
 		a := measure_run(ctx, style, s[:starts[lo]])
 		b := measure_run(ctx, style, s[:starts[lo + 1]])
+		if x - a > b - x {
+			return starts[lo + 1]
+		}
+	}
+	return starts[lo]
+}
+
+// caret_x_st does not fall as `at` grows, gaps included, so the same binary
+// search works over it. An x inside a gap lands on the byte the gap opens at.
+@(private)
+offset_at_leaded :: proc(
+	ctx: ^Context,
+	style: Text_Style,
+	s: string,
+	x: f32,
+	spans: []Text_Span,
+) -> int {
+	starts := rune_starts(ctx, s)
+	lo, hi := 0, len(starts) - 1
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if caret_x_st(ctx, style, s, starts[mid], spans) <= x {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	if lo + 1 < len(starts) {
+		a := caret_x_st(ctx, style, s, starts[lo], spans)
+		b := caret_x_st(ctx, style, s, starts[lo + 1], spans)
 		if x - a > b - x {
 			return starts[lo + 1]
 		}

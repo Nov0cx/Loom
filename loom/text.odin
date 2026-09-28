@@ -34,6 +34,9 @@ Text_Key :: struct {
 	tab_org: f32,
 	hash:    u64,
 	n:       int,
+	// The gaps the spans reserve. Colours do not move the layout; a lead does,
+	// so an entry may not be reused across two different gap sets.
+	leads:   u64,
 }
 
 @(private)
@@ -61,10 +64,49 @@ Text_Entry :: struct {
 	last_used: u64,
 }
 
-// A colour run over a node's text, by byte.
+// A colour run over a node's text, by byte. `lead` reserves blank width
+// immediately before `start`, for a host that draws something of its own inside
+// the line (an inline swatch, a marker); every measure, the caret and the hit
+// test agree on it.
 Text_Span :: struct {
 	start, end: int,
 	color:      Color,
+	lead:       f32,
+}
+
+// Width the spans reserve at or before byte `at`, which is what a host adds to
+// its own x arithmetic to agree with the laid-out text.
+span_lead_before :: proc(spans: []Text_Span, at: int) -> f32 {
+	total: f32
+	for s in spans {
+		if s.start <= at {
+			total += s.lead
+		}
+	}
+	return total
+}
+
+// Width the spans reserve inside [from, to), the piece a pen walks from `from`.
+// A gap lands in the piece its byte starts, thus piece widths tile.
+@(private)
+span_lead_in :: proc(spans: []Text_Span, from, to: int) -> f32 {
+	total: f32
+	for s in spans {
+		if s.start >= from && s.start < to {
+			total += s.lead
+		}
+	}
+	return total
+}
+
+@(private)
+spans_lead_any :: proc(spans: []Text_Span) -> bool {
+	for s in spans {
+		if s.lead != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 Text_Run :: struct {
@@ -166,15 +208,22 @@ measure_tabbed :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
 	return x - st.tab_org
 }
 
+// `base` is the byte `s` starts at inside the node's whole text, so a piece
+// picks up the gaps its own bytes open. The tab grid stays on the glyph pen: a
+// gap shifts the text after it without moving a tab stop.
 @(private)
-measure_run :: proc(ctx: ^Context, st: Text_Style, s: string) -> f32 {
+measure_run :: proc(
+	ctx: ^Context,
+	st: Text_Style,
+	s: string,
+	spans: []Text_Span = nil,
+	base := 0,
+) -> f32 {
 	if s == "" {
 		return 0
 	}
-	if st.tab_w > 0 {
-		return measure_tabbed(ctx, st, s)
-	}
-	return measure_plain(ctx, st, s)
+	w := st.tab_w > 0 ? measure_tabbed(ctx, st, s) : measure_plain(ctx, st, s)
+	return w + span_lead_in(spans, base, base + len(s))
 }
 
 @(private)
@@ -183,7 +232,7 @@ measure_text_node :: proc(ctx: ^Context, n: ^Node, max_w: f32) -> Vec2 {
 		return {}
 	}
 	st := text_style(ctx, &n.computed)
-	e := text_layout(ctx, st, n.el.text, max(max_w, 0))
+	e := text_layout(ctx, st, n.el.text, max(max_w, 0), n.el.spans)
 	return e.size
 }
 
@@ -220,7 +269,7 @@ text_width :: proc(text: string, props: Props = {}, loc := #caller_location) -> 
 }
 
 @(private)
-text_key :: proc(st: Text_Style, text: string, max_w: f32) -> Text_Key {
+text_key :: proc(st: Text_Style, text: string, max_w: f32, spans: []Text_Span) -> Text_Key {
 	return Text_Key {
 		font = st.font,
 		size = st.size,
@@ -231,12 +280,34 @@ text_key :: proc(st: Text_Style, text: string, max_w: f32) -> Text_Key {
 		tab_org = st.tab_org,
 		hash = hash.fnv64a(transmute([]u8)text),
 		n = len(text),
+		leads = leads_hash(spans),
 	}
 }
 
+// Zero when no span reserves anything, which is every text in a page that wants
+// none: the key is then what it was before leads existed.
 @(private)
-text_layout :: proc(ctx: ^Context, st: Text_Style, text: string, max_w: f32) -> Text_Entry {
-	key := text_key(st, text, max_w)
+leads_hash :: proc(spans: []Text_Span) -> u64 {
+	h: u64
+	for s in spans {
+		if s.lead == 0 {
+			continue
+		}
+		pair := [2]u32{u32(s.start), transmute(u32)s.lead}
+		h = hash.fnv64a(slice.to_bytes(pair[:]), h)
+	}
+	return h
+}
+
+@(private)
+text_layout :: proc(
+	ctx: ^Context,
+	st: Text_Style,
+	text: string,
+	max_w: f32,
+	spans: []Text_Span = nil,
+) -> Text_Entry {
+	key := text_key(st, text, max_w, spans)
 
 	if e, ok := &ctx.text_cache[key]; ok {
 		if e.text == text {
@@ -249,7 +320,7 @@ text_layout :: proc(ctx: ^Context, st: Text_Style, text: string, max_w: f32) -> 
 	}
 
 	ctx.text_misses += 1
-	e := build_text_entry(ctx, st, text, max_w)
+	e := build_text_entry(ctx, st, text, max_w, spans)
 	ctx.text_cache[key] = e
 	return e
 }
@@ -263,20 +334,26 @@ free_text_entry :: proc(ctx: ^Context, e: ^Text_Entry) {
 }
 
 @(private)
-build_text_entry :: proc(ctx: ^Context, st: Text_Style, text: string, max_w: f32) -> Text_Entry {
+build_text_entry :: proc(
+	ctx: ^Context,
+	st: Text_Style,
+	text: string,
+	max_w: f32,
+	spans: []Text_Span,
+) -> Text_Entry {
 	words := make([dynamic]Text_Word, 0, 16, ctx.frame_allocator)
 	lines := make([dynamic]Text_Line, 0, 4, ctx.frame_allocator)
 	space_w: f32
 
 	switch st.wrap {
 	case .Words:
-		space_w = wrap_words(ctx, st, text, max_w, &words, &lines)
+		space_w = wrap_words(ctx, st, text, max_w, &words, &lines, spans)
 	case .None:
-		wrap_single(ctx, st, text, &words, &lines)
+		wrap_single(ctx, st, text, &words, &lines, spans)
 	case .Chars:
-		wrap_chars(ctx, st, text, max_w, &words, &lines)
+		wrap_chars(ctx, st, text, max_w, &words, &lines, spans)
 	case .Ellipsis:
-		wrap_ellipsis(ctx, st, text, max_w, &words, &lines)
+		wrap_ellipsis(ctx, st, text, max_w, &words, &lines, spans)
 	}
 
 	e := Text_Entry {
@@ -326,6 +403,7 @@ wrap_words :: proc(
 	max_w: f32,
 	words: ^[dynamic]Text_Word,
 	lines: ^[dynamic]Text_Line,
+	spans: []Text_Span = nil,
 ) -> f32 {
 	space_w := measure_run(ctx, st, " ")
 	limit := max_w + LAYOUT_EPS
@@ -342,7 +420,7 @@ wrap_words :: proc(
 		}
 
 		if j > i {
-			w := measure_run(ctx, st, text[i:j])
+			w := measure_run(ctx, st, text[i:j], spans, i)
 			add := count > 0 ? space_w + w : w
 			if count > 0 && max_w > 0 && cur + add > limit {
 				push_text_line(words, lines, first, count, cur, at, false)
@@ -375,8 +453,9 @@ wrap_single :: proc(
 	text: string,
 	words: ^[dynamic]Text_Word,
 	lines: ^[dynamic]Text_Line,
+	spans: []Text_Span = nil,
 ) {
-	w := measure_run(ctx, st, text)
+	w := measure_run(ctx, st, text, spans, 0)
 	append(words, Text_Word{start = 0, end = len(text), width = w})
 	push_text_line(words, lines, 0, 1, w, 0, true)
 }
@@ -389,6 +468,7 @@ wrap_chars :: proc(
 	max_w: f32,
 	words: ^[dynamic]Text_Word,
 	lines: ^[dynamic]Text_Line,
+	spans: []Text_Span = nil,
 ) {
 	limit := max_w + LAYOUT_EPS
 	start := 0
@@ -401,11 +481,12 @@ wrap_chars :: proc(
 		text: string,
 		words: ^[dynamic]Text_Word,
 		lines: ^[dynamic]Text_Line,
+		spans: []Text_Span,
 		from, to: int,
 		hard: bool,
 	) {
 		if to > from {
-			w := measure_run(ctx, st, text[from:to])
+			w := measure_run(ctx, st, text[from:to], spans, from)
 			append(words, Text_Word{start = from, end = to, width = w})
 			push_text_line(words, lines, len(words) - 1, 1, w, from, hard)
 			return
@@ -416,7 +497,7 @@ wrap_chars :: proc(
 	i := 0
 	for i < len(text) {
 		if text[i] == '\n' {
-			flush(ctx, st, text, words, lines, start, i, true)
+			flush(ctx, st, text, words, lines, spans, start, i, true)
 			i += 1
 			start, cur, any_rune = i, 0, false
 			continue
@@ -426,9 +507,9 @@ wrap_chars :: proc(
 		if n <= 0 {
 			n = 1
 		}
-		w := measure_run(ctx, st, text[i:i + n])
+		w := measure_run(ctx, st, text[i:i + n], spans, i)
 		if any_rune && max_w > 0 && cur + w > limit {
-			flush(ctx, st, text, words, lines, start, i, false)
+			flush(ctx, st, text, words, lines, spans, start, i, false)
 			start, cur, any_rune = i, 0, false
 		}
 		cur += w
@@ -436,7 +517,7 @@ wrap_chars :: proc(
 		i += n
 	}
 
-	flush(ctx, st, text, words, lines, start, len(text), true)
+	flush(ctx, st, text, words, lines, spans, start, len(text), true)
 }
 
 @(private)
@@ -447,8 +528,9 @@ wrap_ellipsis :: proc(
 	max_w: f32,
 	words: ^[dynamic]Text_Word,
 	lines: ^[dynamic]Text_Line,
+	spans: []Text_Span = nil,
 ) {
-	full := measure_run(ctx, st, text)
+	full := measure_run(ctx, st, text, spans, 0)
 	if max_w <= 0 || full <= max_w + LAYOUT_EPS {
 		append(words, Text_Word{start = 0, end = len(text), width = full})
 		push_text_line(words, lines, 0, 1, full, 0, true)
@@ -464,7 +546,7 @@ wrap_ellipsis :: proc(
 		lo, hi := 0, len(starts) - 1
 		for lo <= hi {
 			mid := (lo + hi) / 2
-			w := measure_run(ctx, st, text[:starts[mid]])
+			w := measure_run(ctx, st, text[:starts[mid]], spans, 0)
 			if w <= avail + LAYOUT_EPS {
 				cut, cut_w = starts[mid], w
 				lo = mid + 1
@@ -551,8 +633,18 @@ push_text_run :: proc(
 
 	cursor := 0
 	x := pen
+	// The gaps opened in this call. A tab stop is taken on the pen without them,
+	// so a gap moves the text after it and leaves the tab grid where it was.
+	lead: f32
 	i := from
 	for i < to {
+		for s in spans {
+			if s.start == i {
+				x += s.lead
+				lead += s.lead
+			}
+		}
+
 		j := to
 		if st.tab_w > 0 {
 			for k := i; k < j; k += 1 {
@@ -571,7 +663,7 @@ push_text_run :: proc(
 			x += w
 		}
 		if j < to && st.tab_w > 0 && text[j] == '\t' {
-			x = tab_stop(x, grid, st.tab_w)
+			x = tab_stop(x - lead, grid, st.tab_w) + lead
 			j += 1
 		}
 		i = j
@@ -580,31 +672,43 @@ push_text_run :: proc(
 }
 
 // The pen x of byte `at` inside `text`, measured from the start of the run.
-caret_x :: proc(text: string, at: int, props: Props = {}, loc := #caller_location) -> f32 {
+caret_x :: proc(
+	text: string,
+	at: int,
+	props: Props = {},
+	spans: []Text_Span = nil,
+	loc := #caller_location,
+) -> f32 {
 	ctx := ctx_of(loc)
 	p := props
 	if n := current(); n != nil {
 		inherit_props(&p, &n.computed)
 	}
 	inherit_props(&p, &ctx.cfg.root)
-	return caret_x_st(ctx, text_style(ctx, &p), text, at)
+	return caret_x_st(ctx, text_style(ctx, &p), text, at, spans)
 }
 
 // The byte index of `text` nearest pixel `x`, measured from the start of the run.
-offset_at :: proc(text: string, x: f32, props: Props = {}, loc := #caller_location) -> int {
+offset_at :: proc(
+	text: string,
+	x: f32,
+	props: Props = {},
+	spans: []Text_Span = nil,
+	loc := #caller_location,
+) -> int {
 	ctx := ctx_of(loc)
 	p := props
 	if n := current(); n != nil {
 		inherit_props(&p, &n.computed)
 	}
 	inherit_props(&p, &ctx.cfg.root)
-	return offset_at_st(ctx, text_style(ctx, &p), text, x)
+	return offset_at_st(ctx, text_style(ctx, &p), text, x, spans)
 }
 
 @(private)
 build_runs :: proc(ctx: ^Context, n: ^Node, origin: Vec2, box: Vec2) -> []Text_Run {
 	st := text_style(ctx, &n.computed)
-	e := text_layout(ctx, st, n.el.text, max(box.x, 0))
+	e := text_layout(ctx, st, n.el.text, max(box.x, 0), n.el.spans)
 	if len(e.lines) == 0 {
 		return nil
 	}
