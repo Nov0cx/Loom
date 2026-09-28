@@ -16,7 +16,7 @@ POPUP_DUR :: f32(0.1)
 TOOLTIP_DELAY :: f32(0.5)
 TOOLTIP_RADIUS :: f32(6)
 TOOLTIP_MAX_W :: f32(320)
-TOOLTIP_OFFSET :: Vec2{14, 20}
+TOOLTIP_GAP :: f32(6)
 
 BARS_KEY :: "loom.bars"
 
@@ -268,9 +268,16 @@ tooltip :: proc(
 	id := el.key != "" ? hash_string(ctx.id_seed, el.key) : hash_loc(ctx.id_seed, loc)
 	prev := node_alive(ctx, id)
 
+	// Anchored under the control, not under the mouse, so the card reads as
+	// belonging to it. A wide anchor (a row) keeps the card near the pointer,
+	// inside the anchor's own width.
 	vp := ctx.input.viewport
-	p := ctx.input.mouse + TOOLTIP_OFFSET
+	p := Vec2{a.rect.x, a.rect.y + a.rect.h + TOOLTIP_GAP}
 	if prev != nil {
+		p.x = clamp(ctx.input.mouse.x - TOOLTIP_GAP, a.rect.x, max(a.rect.x, a.rect.x + a.rect.w - prev.rect.w))
+		if p.y + prev.rect.h > vp.y {
+			p.y = a.rect.y - prev.rect.h - TOOLTIP_GAP
+		}
 		p.x = clamp(p.x, 0, max(vp.x - prev.rect.w, 0))
 		p.y = clamp(p.y, 0, max(vp.y - prev.rect.h, 0))
 	}
@@ -282,6 +289,9 @@ tooltip :: proc(
 		props = {
 			position = .Fixed,
 			inset = {l = p.x, t = p.y},
+			// Over every other float: a tooltip explains what an open menu or
+			// dialog covers, so it is the last thing painted.
+			z = max(i16),
 			w = FIT,
 			h = FIT,
 			max_w = TOOLTIP_MAX_W,

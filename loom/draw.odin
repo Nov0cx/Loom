@@ -85,6 +85,11 @@ Paint_Entry :: struct {
 Float_Seed :: struct {
 	node:  ^Node,
 	alpha: f32,
+	// Highest z on the way down to this float. `z` orders siblings only, so a
+	// float carries its ancestors': a tooltip declared in a z=0 title bar has
+	// to paint over a z=500 menu.
+	z:     i16,
+	done:  bool,
 }
 
 @(private)
@@ -243,9 +248,26 @@ paint_order_space :: proc(
 	out := make([dynamic]Paint_Entry, 0, max(ctx.live_nodes, 8), ctx.frame_allocator)
 	floats := make([dynamic]Float_Seed, 0, 8, ctx.frame_allocator)
 
-	paint_walk(ctx, seed, clip, space, 1, 0, &out, &floats)
-	for i := 0; i < len(floats); i += 1 {
-		paint_walk(ctx, floats[i].node, clip, space, floats[i].alpha, 0, &out, &floats)
+	paint_walk(ctx, seed, clip, space, 1, 0, 0, &out, &floats)
+	// Lowest z first, discovery order inside one z. A float found while another
+	// one paints joins the same pass, so the lowest is picked again rather than
+	// the list sorted once. There are only ever a handful.
+	for {
+		next := -1
+		for i in 0 ..< len(floats) {
+			if floats[i].done {
+				continue
+			}
+			if next < 0 || floats[i].z < floats[next].z {
+				next = i
+			}
+		}
+		if next < 0 {
+			break
+		}
+		floats[next].done = true
+		f := floats[next] // the walk may append and move the backing array
+		paint_walk(ctx, f.node, clip, space, f.alpha, 0, f.z, &out, &floats)
 	}
 	return out[:]
 }
@@ -258,6 +280,7 @@ paint_walk :: proc(
 	space: ^Viewport,
 	alpha: f32,
 	depth: int,
+	z_base: i16,
 	out: ^[dynamic]Paint_Entry,
 	floats: ^[dynamic]Float_Seed,
 ) {
@@ -284,12 +307,12 @@ paint_walk :: proc(
 	items := paint_children(ctx, n, count)
 	if items == nil {
 		for c := n.first_child; c != nil; c = c.next {
-			paint_child(ctx, c, child_clip, space, a, depth, out, floats)
+			paint_child(ctx, c, child_clip, space, a, depth, z_base, out, floats)
 		}
 		return
 	}
 	for c in items {
-		paint_child(ctx, c, child_clip, space, a, depth, out, floats)
+		paint_child(ctx, c, child_clip, space, a, depth, z_base, out, floats)
 	}
 }
 
@@ -301,17 +324,19 @@ paint_child :: proc(
 	space: ^Viewport,
 	alpha: f32,
 	depth: int,
+	z_base: i16,
 	out: ^[dynamic]Paint_Entry,
 	floats: ^[dynamic]Float_Seed,
 ) {
 	if c.viewport != space {
 		return
 	}
+	z := max(z_base, c.computed.z)
 	if .Floating in c.flags {
-		append(floats, Float_Seed{node = c, alpha = alpha})
+		append(floats, Float_Seed{node = c, alpha = alpha, z = z})
 		return
 	}
-	paint_walk(ctx, c, clip, space, alpha, depth + 1, out, floats)
+	paint_walk(ctx, c, clip, space, alpha, depth + 1, z, out, floats)
 }
 
 @(private)
