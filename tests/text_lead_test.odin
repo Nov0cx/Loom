@@ -143,13 +143,16 @@ test_a_lead_leaves_the_tab_grid_alone :: proc(t: ^testing.T) {
         ui.end_frame()
     }
 
+    // The span ends inside "ab", so the colored byte is a run of its own.
     runs := ui.text_runs(it.node)
-    testing.expect_value(t, len(runs), 2)
-    testing.expect_value(t, runs[0].text, "ab")
-    testing.expect_value(t, runs[1].text, "x")
-    // Everything shifts by the one gap, and the stop itself has not moved.
+    testing.expect_value(t, len(runs), 3)
+    testing.expect_value(t, runs[0].text, "a")
+    testing.expect_value(t, runs[1].text, "b")
+    testing.expect_value(t, runs[2].text, "x")
+    // Everything shifts by the one gap, and the stop keeps its place in the line.
     testing.expect_value(t, runs[0].pos.x, GAP)
-    testing.expect_value(t, runs[1].pos.x, TAB_W + GAP)
+    testing.expect_value(t, runs[1].pos.x, CHAR_W + GAP)
+    testing.expect_value(t, runs[2].pos.x, TAB_W + GAP)
 }
 
 @(test)

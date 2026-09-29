@@ -16,26 +16,41 @@ Fake_Vp :: struct {
 	ev:        ui.Viewport_Events,
 }
 
+// One named proc per viewport op, not a literal in the Viewport_Ops literal:
+// a proc literal's parameters can come out of codegen as undefined globals
+// named after the parameter, which the link then fails on.
+fake_vp_create :: proc(title: string, rect: ui.Rect, user: rawptr) -> ui.Viewport_Handle {
+	g := (^Fake_Vp)(user)
+	g.created += 1
+	g.next += 1
+	return ui.Viewport_Handle(g.next)
+}
+
+fake_vp_destroy :: proc(v: ui.Viewport_Handle, user: rawptr) {
+	g := (^Fake_Vp)(user)
+	g.destroyed += 1
+}
+
+fake_vp_set_rect :: proc(v: ui.Viewport_Handle, rect: ui.Rect, user: rawptr) {}
+
+fake_vp_begin :: proc(v: ui.Viewport_Handle, user: rawptr) {}
+
+fake_vp_end :: proc(v: ui.Viewport_Handle, user: rawptr) {}
+
+fake_vp_poll :: proc(v: ui.Viewport_Handle, user: rawptr) -> ui.Viewport_Events {
+	return (^Fake_Vp)(user).ev
+}
+
 fake_viewport_backend :: proc(f: ^Fake_Vp) -> ui.Backend {
 	b := fake_backend()
 	b.user = f
 	b.viewports = ui.Viewport_Ops {
-		create = proc(title: string, rect: ui.Rect, user: rawptr) -> ui.Viewport_Handle {
-			g := (^Fake_Vp)(user)
-			g.created += 1
-			g.next += 1
-			return ui.Viewport_Handle(g.next)
-		},
-		destroy = proc(v: ui.Viewport_Handle, user: rawptr) {
-			g := (^Fake_Vp)(user)
-			g.destroyed += 1
-		},
-		set_rect = proc(v: ui.Viewport_Handle, rect: ui.Rect, user: rawptr) {},
-		begin = proc(v: ui.Viewport_Handle, user: rawptr) {},
-		end = proc(v: ui.Viewport_Handle, user: rawptr) {},
-		poll = proc(v: ui.Viewport_Handle, user: rawptr) -> ui.Viewport_Events {
-			return (^Fake_Vp)(user).ev
-		},
+		create   = fake_vp_create,
+		destroy  = fake_vp_destroy,
+		set_rect = fake_vp_set_rect,
+		begin    = fake_vp_begin,
+		end      = fake_vp_end,
+		poll     = fake_vp_poll,
 	}
 	return b
 }
