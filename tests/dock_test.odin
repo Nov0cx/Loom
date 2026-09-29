@@ -496,6 +496,44 @@ test_dock_save_load_round_trip :: proc(t: ^testing.T) {
 	)
 }
 
+// A reset drops the arrangement, thus a host can seed a default one over it
+// instead of splitting what is already there.
+@(test)
+test_dock_reset_clears_the_arrangement :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	d := dock_frames(&r, {"A"}, 3)
+
+	rig_open(&r)
+	_, right := ui.dock_split(d, "", .Right, 0.35)
+	ui.dock_panel(d, "B", right)
+	ui.end_frame()
+	dock_frames(&r, {"A", "B"}, 3)
+
+	sp := dock_space_of(&ctx)
+	testing.expect_value(t, sp.root.kind, ui.Dock_Kind.Split)
+
+	// Seeding the other way round over the reset space: the split is the new
+	// one, not one wrapped around the old.
+	rig_open(&r)
+	ui.dock_reset(d)
+	left, rest := ui.dock_split(d, "", .Left, 0.25)
+	ui.dock_panel(d, "B", left)
+	ui.dock_panel(d, "A", rest)
+	ui.end_frame()
+	dock_frames(&r, {"A", "B"}, 3)
+
+	testing.expect_value(t, sp.root.kind, ui.Dock_Kind.Split)
+	testing.expect(t, near(sp.root.ratio, 0.25), "the reseeded ratio is the one just asked for")
+	testing.expect_value(t, len(sp.root.children[0].tabs), 1)
+	testing.expect_value(t, sp.root.children[0].tabs[0].title, "B")
+	testing.expect_value(t, len(sp.root.children[1].tabs), 1)
+	testing.expect_value(t, sp.root.children[1].tabs[0].title, "A")
+}
+
 @(test)
 test_dock_load_skips_unknown_titles :: proc(t: ^testing.T) {
 	ctx: ui.Context

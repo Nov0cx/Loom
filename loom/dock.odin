@@ -1494,6 +1494,27 @@ dock_free_tree :: proc(ctx: ^Context, n: ^Dock_Node) {
 	dock_free_node(ctx, n)
 }
 
+// Frees a space's arrangement: the tree, the detached windows and their
+// viewports, and the slots closed panels go back to.
+@(private)
+dock_clear_space :: proc(ctx: ^Context, sp: ^Dock_Space) {
+	for key, home in sp.homes {
+		delete(key, ctx.allocator)
+		delete(home.neighbour, ctx.allocator)
+	}
+	clear(&sp.homes)
+
+	dock_free_tree(ctx, sp.root)
+	sp.root = nil
+	for d in sp.detached {
+		if d.viewport != nil {
+			viewport_drop(ctx, d.viewport)
+		}
+		dock_free_tree(ctx, d)
+	}
+	clear(&sp.detached)
+}
+
 @(private)
 dock_register_handler :: proc(ctx: ^Context) {
 	if ctx.dock_handler {
@@ -1541,6 +1562,20 @@ dock_apply_pending :: proc(ctx: ^Context, sp: ^Dock_Space) {
 		delete(value, ctx.allocator)
 	}
 	clear(&sp.pending)
+}
+
+// Drops a space's whole arrangement. The next `panel` call starts from an empty
+// root, thus a host can seed a default layout over the one on screen — what a
+// switch to a workspace with a saved layout of its own needs, since `dock_split`
+// splits what is there instead of replacing it.
+dock_reset :: proc(dock: Dock_Id) {
+	ctx := ctx_of()
+	sp := dock_space_by_handle(ctx, dock)
+	if sp == nil {
+		return
+	}
+	dock_clear_space(ctx, sp)
+	mark_dirty(ctx)
 }
 
 dock_save :: proc(dock: Dock_Id, w: Writer) {
@@ -1772,22 +1807,8 @@ dock_rebuild :: proc(ctx: ^Context, sp: ^Dock_Space) {
 		return
 	}
 
-	for key, home in sp.homes {
-		delete(key, ctx.allocator)
-		delete(home.neighbour, ctx.allocator)
-	}
-	clear(&sp.homes)
+	dock_clear_space(ctx, sp)
 	dock_read_homes(ctx, sp)
-
-	dock_free_tree(ctx, sp.root)
-	sp.root = nil
-	for d in sp.detached {
-		if d.viewport != nil {
-			viewport_drop(ctx, d.viewport)
-		}
-		dock_free_tree(ctx, d)
-	}
-	clear(&sp.detached)
 
 	sp.root = dock_read_node(ctx, sp, root_name, nil)
 	if sp.root == nil {
