@@ -993,6 +993,9 @@ dock_tab :: proc(
 			h = STRETCH,
 			dir = .Row,
 			align = .Center,
+			// The label box is a full line tall and the close box is square:
+			// centering the ink in both is what puts them on one line.
+			text_align_v = .Center,
 			gap = {6, 0},
 			pad = DOCK_TAB_PAD,
 			bg = t.surface,
@@ -1006,7 +1009,9 @@ dock_tab :: proc(
 	}
 
 	it := begin(e, loc)
-	leaf({key = "lbl", text = tab.title, props = {w = FIT, h = FIT}}, loc)
+	// The same box height as the close button: text_align_v centers the ink in
+	// each box, thus two heights would put the label and the x on two baselines.
+	leaf({key = "lbl", text = tab.title, props = {w = FIT, h = Px(DOCK_CLOSE_W)}}, loc)
 
 	closed := false
 	if tab.open != nil {
@@ -1018,8 +1023,7 @@ dock_tab :: proc(
 				props = {
 					w = Px(DOCK_CLOSE_W),
 					h = Px(DOCK_CLOSE_W),
-					justify = .Center,
-					align = .Center,
+					text_align = .Center,
 					color = t.text_faint,
 					radius = rad(2),
 				},
