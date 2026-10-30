@@ -145,6 +145,7 @@ Interaction :: struct {
 	released:       bool,
 	clicked:        bool,
 	click_count:    int,
+	press_count:    int, // click_count of the click this press starts
 	right_clicked:  bool,
 	middle_clicked: bool,
 	double_clicked: bool,

@@ -97,6 +97,7 @@ Context :: struct {
 	last_click_time:   f64,
 	last_click_pos:    Vec2,
 	click_count:       int,
+	press_count:       int,
 	prev_mouse:        Vec2,
 	prev_keys:         Key_Set,
 	prev_hovered_id:   Id,

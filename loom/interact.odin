@@ -110,6 +110,7 @@ step_mouse :: proc(ctx: ^Context, hit: Id) {
 			ctx.press_pos[b] = ctx.input.mouse
 			ctx.pressed_id[b] = hit
 			if b == .Left {
+				ctx.press_count = click_continues(ctx, hit) ? ctx.click_count + 1 : 1
 				press_left(ctx, hit)
 			}
 		}
@@ -192,16 +193,21 @@ press_left :: proc(ctx: ^Context, hit: Id) {
 	}
 }
 
+// Reports whether a click on hit at the mouse continues the last click's run.
+@(private)
+click_continues :: proc(ctx: ^Context, hit: Id) -> bool {
+	m := ctx.input.mouse
+	return(
+		ctx.last_click_id == hit &&
+		ctx.time - ctx.last_click_time <= f64(ctx.cfg.double_click) &&
+		abs(m.x - ctx.last_click_pos.x) <= CLICK_SLOP &&
+		abs(m.y - ctx.last_click_pos.y) <= CLICK_SLOP 	)
+}
+
 @(private)
 step_double_click :: proc(ctx: ^Context, hit: Id) {
 	m := ctx.input.mouse
-	same := ctx.last_click_id == hit
-	in_time := ctx.time - ctx.last_click_time <= f64(ctx.cfg.double_click)
-	near :=
-		abs(m.x - ctx.last_click_pos.x) <= CLICK_SLOP &&
-		abs(m.y - ctx.last_click_pos.y) <= CLICK_SLOP
-
-	if same && in_time && near {
+	if click_continues(ctx, hit) {
 		ctx.click_count += 1
 	} else {
 		ctx.click_count = 1

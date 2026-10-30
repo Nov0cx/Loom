@@ -272,6 +272,9 @@ interaction :: proc(ctx: ^Context, n: ^Node) -> Interaction {
 	it.hover_exited = !it.hovered && ctx.prev_hovered_id == n.id
 	it.focused = ctx.focus_id == n.id
 	it.pressed = ctx.pressed_id[.Left] == n.id
+	if it.pressed {
+		it.press_count = ctx.press_count
+	}
 	it.released = ctx.released_id[.Left] == n.id
 	it.clicked = ctx.clicked_id == n.id
 	if it.clicked {

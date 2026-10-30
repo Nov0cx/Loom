@@ -134,12 +134,13 @@ test_click_count_counts_a_triple_click :: proc(t: ^testing.T) {
 		ui.end_frame()
 	}
 
-	counts: [3]int
+	counts, press_counts: [3]int
 	for i in 0 ..< 3 {
 		press(&r)
 		rig_open(&r)
 		p = two_buttons()
 		ui.end_frame()
+		press_counts[i] = p.a.press_count
 
 		release(&r)
 		rig_open(&r)
@@ -151,6 +152,9 @@ test_click_count_counts_a_triple_click :: proc(t: ^testing.T) {
 	testing.expect_value(t, counts[0], 1)
 	testing.expect_value(t, counts[1], 2)
 	testing.expect_value(t, counts[2], 3)
+	testing.expect_value(t, press_counts[0], 1)
+	testing.expect_value(t, press_counts[1], 2)
+	testing.expect_value(t, press_counts[2], 3)
 }
 
 @(test)
