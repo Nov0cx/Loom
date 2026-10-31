@@ -246,19 +246,43 @@ focus_collect :: proc(n: ^Node, out: ^[dynamic]^Node) {
 step_focus_keys :: proc(ctx: ^Context) {
 	if .Escape in ctx.input.keys_pressed {
 		ctx.focus_id = 0
+	}
+}
+
+// Moves the focus on a Tab that nothing took this frame: forward, or back with
+// Shift. Runs at end_frame, so a widget or a host chord that consumed the Tab
+// keeps it. A Tab with Ctrl, Alt or Super is a chord and never moves the focus.
+// The move lands with the next begin_frame, like set_focus.
+@(private)
+step_focus_tab :: proc(ctx: ^Context) {
+	if ctx.focus_next_set {
 		return
 	}
-	if .Tab not_in ctx.input.keys_pressed {
+	steps := 0
+	back := false
+	if ctx.key_events != nil {
+		for &ev in ctx.key_events {
+			if ev.consumed || ev.key != .Tab || ev.action == .Release || ev.mods - {.Shift} != {} {
+				continue
+			}
+			ev.consumed = true
+			steps += 1
+			back = .Shift in ev.mods
+		}
+	} else if .Tab in ctx.input.keys_pressed && ctx.input.mods - {.Shift} == {} {
+		steps = 1
+		back = .Shift in ctx.input.mods
+	}
+	if steps == 0 {
 		return
 	}
 
 	list := focus_order(ctx)
 	if len(list) == 0 {
-		ctx.focus_id = 0
+		ctx.focus_next = 0
+		ctx.focus_next_set = true
 		return
 	}
-
-	back := .Shift in ctx.input.mods
 	idx := -1
 	for n, i in list {
 		if n.id == ctx.focus_id {
@@ -266,14 +290,15 @@ step_focus_keys :: proc(ctx: ^Context) {
 			break
 		}
 	}
-
-	next: int
-	if idx < 0 {
-		next = back ? len(list) - 1 : 0
-	} else {
-		next = back ? (idx - 1 + len(list)) % len(list) : (idx + 1) % len(list)
+	for _ in 0 ..< steps {
+		if idx < 0 {
+			idx = back ? len(list) - 1 : 0
+		} else {
+			idx = back ? (idx - 1 + len(list)) % len(list) : (idx + 1) % len(list)
+		}
 	}
-	ctx.focus_id = list[next].id
+	ctx.focus_next = list[idx].id
+	ctx.focus_next_set = true
 }
 
 @(private)

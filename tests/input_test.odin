@@ -41,7 +41,7 @@ Rig :: struct {
 	text:      string,
 }
 
-rig_open :: proc(r: ^Rig, dt: f32 = DT) {
+rig_open :: proc(r: ^Rig, dt: f32 = DT, events: []ui.Key_Event = nil) {
 	in_ := ui.Input {
 		dt             = dt,
 		viewport       = VIEWPORT,
@@ -55,6 +55,7 @@ rig_open :: proc(r: ^Rig, dt: f32 = DT) {
 		keys_pressed   = r.keys,
 		mods           = r.mods,
 		text           = r.text,
+		key_events     = events,
 	}
 	ui.begin_frame(in_)
 	r.prev_down = r.down
@@ -750,6 +751,89 @@ test_tab_skips_disabled :: proc(t: ^testing.T) {
 	testing.expect_value(t, ui.focused().id, f.b.id)
 	tab(&r, true)
 	testing.expect_value(t, ui.focused().id, f.d.id)
+}
+
+// One frame with a Tab press in the key stream, then an empty one. take
+// consumes the Tab during the frame, as a widget or a host chord would.
+tab_event :: proc(r: ^Rig, mods: ui.Mod_Set, take := false) -> Form {
+	r.mods = mods
+	events := []ui.Key_Event{{key = .Tab, mods = mods, action = .Press}}
+	key_down(r, .Tab)
+	rig_open(r, events = events)
+	f := form()
+	if take {
+		ui.take_key(.Tab, mods)
+	}
+	ui.end_frame()
+	key_up(r, .Tab)
+	r.mods = {}
+	rig_open(r)
+	form()
+	ui.end_frame()
+	return f
+}
+
+@(test)
+test_tab_event_moves_focus :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, -1, -1)
+	rig_open(&r)
+	form()
+	ui.end_frame()
+
+	f := tab_event(&r, {})
+	testing.expect_value(t, ui.focused().id, f.a.id)
+	tab_event(&r, {.Shift})
+	testing.expect_value(t, ui.focused().id, f.d.id)
+}
+
+// A Tab that the frame consumed belongs to its taker: an editor indents, the
+// focus stays.
+@(test)
+test_consumed_tab_keeps_focus :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, -1, -1)
+	rig_open(&r)
+	form()
+	ui.end_frame()
+
+	f := tab_event(&r, {})
+	testing.expect_value(t, ui.focused().id, f.a.id)
+	tab_event(&r, {}, take = true)
+	testing.expect_value(t, ui.focused().id, f.a.id)
+}
+
+// Ctrl, Alt or Super with Tab is a chord, not focus traversal.
+@(test)
+test_tab_chord_keeps_focus :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, -1, -1)
+	rig_open(&r)
+	form()
+	ui.end_frame()
+
+	f := tab_event(&r, {})
+	for mods in ([3]ui.Mod_Set{{.Ctrl}, {.Alt}, {.Ctrl, .Shift}}) {
+		tab_event(&r, mods)
+		testing.expect_value(t, ui.focused().id, f.a.id)
+	}
+	// The level sets alone, as a host with no key stream sends them.
+	r.mods = {.Ctrl}
+	tab(&r)
+	r.mods = {}
+	testing.expect_value(t, ui.focused().id, f.a.id)
 }
 
 @(test)

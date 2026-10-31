@@ -290,6 +290,8 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 	ctx.id_seed = 0
 	ctx.in_frame = false
 
+	step_focus_tab(ctx)
+
 	settle_docks(ctx)
 	cascade(ctx)
 	layout(ctx)
