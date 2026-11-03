@@ -433,6 +433,27 @@ test_stale_cache_entries_are_evicted :: proc(t: ^testing.T) {
 	testing.expect_value(t, ui.stats().text_entries, 0)
 }
 
+@(test)
+test_clear_text_cache_drops_every_entry :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	ui.init(&ctx, ui.Config{backend = fake_backend(), root = ui.Props{font_size = 16}})
+	defer ui.destroy(&ctx)
+
+	open_frame()
+	ui.leaf({key = "a", text = "alpha"})
+	ui.end_frame()
+	testing.expect(t, ui.stats().text_entries > 0, "nothing was cached")
+
+	ui.clear_text_cache()
+	testing.expect_value(t, ui.stats().text_entries, 0)
+
+	// The next frame measures the text again.
+	open_frame()
+	ui.leaf({key = "a", text = "alpha"})
+	ui.end_frame()
+	testing.expect(t, ui.stats().text_entries > 0, "the text was not measured again")
+}
+
 fmt_index :: proc(prefix: string, i: int) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	strings.write_string(&b, prefix)

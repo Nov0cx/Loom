@@ -829,6 +829,16 @@ evict_text :: proc(ctx: ^Context) {
 	}
 }
 
+// Drops every cached text layout. A host calls it when a font handle starts to
+// name another face, since the cache is keyed by the handle.
+clear_text_cache :: proc() {
+	ctx := ctx_of()
+	for _, &e in ctx.text_cache {
+		free_text_entry(ctx, &e)
+	}
+	clear(&ctx.text_cache)
+}
+
 @(private)
 free_text_cache :: proc(ctx: ^Context) {
 	for _, &e in ctx.text_cache {
