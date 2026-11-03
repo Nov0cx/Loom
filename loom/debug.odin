@@ -44,6 +44,7 @@ Stats :: struct {
 	free_nodes:    int,
 	state_blocks:  int,
 	frame_index:   u64,
+	passes:        int,
 	open_depth:    int,
 	commands:      int,
 	text_entries:  int,
@@ -63,6 +64,7 @@ stats_of :: proc(ctx: ^Context) -> Stats {
 		free_nodes = ctx.free_count,
 		state_blocks = ctx.state_blocks,
 		frame_index = ctx.frame_index,
+		passes = ctx.passes_last,
 		open_depth = len(ctx.open),
 		commands = ctx.cmd_count,
 		text_entries = len(ctx.text_cache),
@@ -527,8 +529,9 @@ debug_lines :: proc(ctx: ^Context, n: ^Node, st: Stats) -> []string {
 	append(
 		&lines,
 		fmt.aprintf(
-			"frame %v  animating %v",
+			"frame %v  passes %v  animating %v",
 			st.frame_index,
+			st.passes,
 			ctx.animating || ctx.scrolling,
 			allocator = ctx.frame_allocator,
 		),

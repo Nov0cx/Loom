@@ -76,11 +76,12 @@ main :: proc() {
 
 		input := vkb.poll_input(&b)
 
-		ui.begin_frame(input)
-		if w.frame != nil {
-			w.frame(&l)
+		for ui.frame(input) {
+			if w.frame != nil {
+				w.frame(&l)
+			}
 		}
-		list := ui.end_frame()
+		list := ui.draw_list()
 
 		vkb.set_clear_color(&b, ui.theme().bg)
 		vkb.render(&b, list)

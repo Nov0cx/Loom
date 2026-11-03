@@ -189,6 +189,7 @@ touch :: proc(ctx: ^Context, id: Id, loc: runtime.Source_Code_Location) -> ^Node
 		n.first_frame = true
 		ctx.nodes[id] = n
 		ctx.live_nodes += 1
+		ctx.created += 1
 	} else {
 		n.first_frame = false
 	}

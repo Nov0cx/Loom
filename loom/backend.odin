@@ -93,6 +93,7 @@ Config :: struct {
 	no_scroll_inertia: bool,
 	// Hides every tooltip. A host that lets the user turn them off sets it.
 	no_tooltips:       bool,
+	max_passes:        u32,
 	frame_allocator:   runtime.Allocator,
 }
 

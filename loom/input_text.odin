@@ -679,6 +679,9 @@ input :: proc(
 	end()
 
 	it.changed = op.changed
+	if it.changed {
+		ctx.pass_wanted = true
+	}
 	it.state = it.node.state
 	return it
 }

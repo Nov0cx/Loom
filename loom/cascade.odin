@@ -182,6 +182,8 @@ cascade :: proc(ctx: ^Context) {
 		return
 	}
 	resolve_states(ctx.root, false, false)
-	ctx.animating = false
+	if ctx.pass <= 1 {
+		ctx.animating = false
+	}
 	cascade_node(ctx, ctx.root, nil)
 }
