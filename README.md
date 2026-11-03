@@ -46,7 +46,24 @@ ui.end_frame()
 host renders Draw_List
 ```
 
-Downside is a one frame lag.
+`begin_frame`/`end_frame` run that pipeline once, and anything that changes while user code runs
+shows one frame late. `frame` runs it again when a pass changed something, against the rects that
+pass just laid out, and emits only the last pass:
+
+```odin
+for ui.frame(input) {
+	build_ui()
+}
+list := ui.draw_list()
+```
+
+A repeat runs when the frame had an input edge, a widget reported `changed`, a node was created,
+`set_focus` or `request_pass` was called, or the node under the pointer moved. An idle frame runs
+once. `Config.max_passes` caps it, 3 by default; 1 restores the single pass.
+
+User code may therefore run up to three times per frame. Input edges (presses, releases, keys, typed
+text, wheel) and `dt` arrive only in the first pass, so `if ui.button("Go").clicked {}` still fires
+once. Work that does not depend on input, such as appending to a log every frame, runs once per pass.
 
 Only a node that asks for the pointer is hit-tested: `.Clickable`, `.Focusable`, `.Draggable`, a
 scrolling one, `.Wheel`, or `.Hoverable`. `.Hoverable` is the one that is no button — a label or a

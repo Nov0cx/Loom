@@ -1133,10 +1133,10 @@ dock_splitter :: proc(
 @(private)
 dock_drag_reset :: proc(ctx: ^Context) {
 	d := &ctx.dock_drag
-	if d.frame == ctx.frame_index {
+	if d.frame == ctx.pass_serial {
 		return
 	}
-	d.frame = ctx.frame_index
+	d.frame = ctx.pass_serial
 	d.space = nil
 	d.target = nil
 	d.zone = .None

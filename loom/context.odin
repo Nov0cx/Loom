@@ -13,6 +13,7 @@ DEFAULT_SCROLL_INERTIA :: f32(6)
 DEFAULT_SCROLL_DAMPING :: f32(0.0015)
 DEFAULT_SCROLL_TO_DUR :: f32(0.25)
 DEFAULT_SETTINGS_RATE :: f32(5)
+DEFAULT_MAX_PASSES :: 3
 
 SCROLL_STOP :: f32(4)
 SCROLL_EPS :: f32(0.01)
@@ -40,6 +41,12 @@ Context :: struct {
 	id_seed:          Id,
 	frame_index:      u64,
 	in_frame:         bool,
+	pass:             int,
+	pass_serial:      u64,
+	pass_wanted:      bool,
+	frame_edges:      bool,
+	created:          int,
+	passes_last:      int,
 	input:            Input,
 	draw_list:        Draw_List,
 	live_nodes:       int,
@@ -142,6 +149,9 @@ init :: proc(ctx: ^Context, cfg: Config, allocator := context.allocator) {
 	if ctx.cfg.settings_rate == 0 {
 		ctx.cfg.settings_rate = DEFAULT_SETTINGS_RATE
 	}
+	if ctx.cfg.max_passes == 0 {
+		ctx.cfg.max_passes = DEFAULT_MAX_PASSES
+	}
 	ctx.theme = cfg.theme == {} ? DEFAULT_THEME : cfg.theme
 
 	if cfg.frame_allocator.procedure != nil {
@@ -218,26 +228,97 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 	assert(!ctx.in_frame, "loom: begin_frame called twice without an end_frame")
 
 	ctx.frame_index += 1
-	ctx.in_frame = true
+	ctx.pass = 1
 	if ctx.owns_frame_arena {
 		virtual.arena_free_all(&ctx.frame_arena)
 	}
 	ctx.input = input
 	ingest_keys(ctx)
-	ctx.keys_eaten = {}
-	ctx.draw_list = {}
 	ctx.text_hits = 0
 	ctx.text_misses = 0
 	ctx.text_measures = 0
+	clear(&ctx.viewport_draws)
+
+	poll_viewports(ctx)
+	in_ := ctx.input
+	ctx.frame_edges =
+		in_.mouse_pressed != {} ||
+		in_.mouse_released != {} ||
+		in_.keys_pressed != {} ||
+		len(in_.key_events) > 0 ||
+		in_.text != "" ||
+		in_.wheel != {}
+
+	start_pass(ctx)
+}
+
+frame :: proc(input: Input) -> bool {
+	ctx := ctx_of()
+	if !ctx.in_frame {
+		begin_frame_ctx(ctx, input)
+		return true
+	}
+	finish_pass(ctx)
+	if ctx.pass < int(ctx.cfg.max_passes) && needs_pass(ctx) {
+		ctx.pass += 1
+		quiet_input(ctx)
+		start_pass(ctx)
+		return true
+	}
+	finalize_frame(ctx)
+	return false
+}
+
+draw_list :: proc() -> Draw_List {
+	return ctx_of().draw_list
+}
+
+request_pass :: proc(loc := #caller_location) {
+	ctx_of(loc).pass_wanted = true
+}
+
+@(private)
+quiet_input :: proc(ctx: ^Context) {
+	ctx.input.dt = 0
+	ctx.input.wheel = {}
+	ctx.input.mouse_pressed = {}
+	ctx.input.mouse_released = {}
+	ctx.input.keys_pressed = {}
+	ctx.input.key_events = nil
+	ctx.input.text = ""
+	ctx.key_events = nil
+}
+
+@(private)
+needs_pass :: proc(ctx: ^Context) -> bool {
+	if ctx.pass_wanted || ctx.focus_next_set || ctx.created > 0 {
+		return true
+	}
+	if ctx.pass == 1 && ctx.frame_edges {
+		return true
+	}
+	if ctx.root == nil || ctx.capture_id != 0 {
+		return false
+	}
+	hit, _ := hit_test(ctx, pointer_order(ctx), ctx.input.mouse)
+	return hit != ctx.hovered_id
+}
+
+@(private)
+start_pass :: proc(ctx: ^Context) {
+	ctx.in_frame = true
+	ctx.pass_serial += 1
+	ctx.pass_wanted = false
+	ctx.created = 0
+	ctx.keys_eaten = {}
+	ctx.draw_list = {}
 
 	clear(&ctx.open)
 	clear(&ctx.id_stack)
 	clear(&ctx.seen)
 	ctx.id_seed = 0
 	clear(&ctx.dock_order)
-	clear(&ctx.viewport_draws)
 
-	poll_viewports(ctx)
 	recompute_states(ctx)
 
 	el := Element {
@@ -245,10 +326,10 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 		props = ctx.cfg.root,
 	}
 	if el.props.w == nil {
-		el.props.w = Px(input.viewport.x)
+		el.props.w = Px(ctx.input.viewport.x)
 	}
 	if el.props.h == nil {
-		el.props.h = Px(input.viewport.y)
+		el.props.h = Px(ctx.input.viewport.y)
 	}
 	if _, set := el.props.color.(Color); !set {
 		el.props.color = ctx.theme.text
@@ -257,7 +338,7 @@ begin_frame_ctx :: proc(ctx: ^Context, input: Input) {
 	root := touch(ctx, hash_string(0, ROOT_KEY), #location(begin_frame_ctx))
 	root.parent = nil
 	root.el = el
-	root.rect = {0, 0, input.viewport.x, input.viewport.y}
+	root.rect = {0, 0, ctx.input.viewport.x, ctx.input.viewport.y}
 	ctx.root = root
 
 	append(&ctx.open, Open_Entry{node = root, prev_seed = 0, id_depth = 0})
@@ -269,6 +350,13 @@ end_frame :: proc() -> Draw_List {
 }
 
 end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
+	finish_pass(ctx)
+	finalize_frame(ctx)
+	return ctx.draw_list
+}
+
+@(private)
+finish_pass :: proc(ctx: ^Context) {
 	assert(ctx.in_frame, "loom: end_frame without a begin_frame")
 
 	if len(ctx.open) > 1 {
@@ -292,6 +380,11 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 	settle_docks(ctx)
 	cascade(ctx)
 	layout(ctx)
+}
+
+@(private)
+finalize_frame :: proc(ctx: ^Context) {
+	ctx.passes_last = ctx.pass
 	if len(ctx.persist) > 0 {
 		sync_persist(ctx, ctx.root)
 	}
@@ -301,7 +394,6 @@ end_frame_ctx :: proc(ctx: ^Context) -> Draw_List {
 
 	prune(ctx)
 	evict_text(ctx)
-	return ctx.draw_list
 }
 
 @(private)

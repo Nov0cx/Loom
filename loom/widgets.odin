@@ -221,6 +221,7 @@ checkbox :: proc(
 	if it.clicked && toggle_enabled(row, it) {
 		value^ = !value^
 		it.changed = true
+		ctx.pass_wanted = true
 	}
 	on := value^
 	if on {
@@ -259,6 +260,7 @@ radio :: proc(
 		value^ = option
 		on = true
 		it.changed = true
+		ctx.pass_wanted = true
 	}
 	if on {
 		it.node.state += {.Checked}
@@ -357,6 +359,9 @@ slider :: proc(
 
 	value^ = clamp(value^, min(min_v, max_v), max(min_v, max_v))
 	it.changed = value^ != entry
+	if it.changed {
+		ctx.pass_wanted = true
+	}
 
 	frac := span != 0 ? clamp((value^ - min_v) / span, 0, 1) : 0
 

@@ -79,9 +79,10 @@ destroy_app :: proc(app: ^App) {
 }
 
 frame :: proc(app: ^App, input: ui.Input) -> ui.Draw_List {
-	ui.begin_frame(input)
-	root(app)
-	return ui.end_frame()
+	for ui.frame(input) {
+		root(app)
+	}
+	return ui.draw_list()
 }
 
 root :: proc(app: ^App) {

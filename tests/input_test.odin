@@ -42,6 +42,10 @@ Rig :: struct {
 }
 
 rig_open :: proc(r: ^Rig, dt: f32 = DT) {
+	ui.begin_frame(rig_input(r, dt))
+}
+
+rig_input :: proc(r: ^Rig, dt: f32 = DT) -> ui.Input {
 	in_ := ui.Input {
 		dt             = dt,
 		viewport       = VIEWPORT,
@@ -56,11 +60,11 @@ rig_open :: proc(r: ^Rig, dt: f32 = DT) {
 		mods           = r.mods,
 		text           = r.text,
 	}
-	ui.begin_frame(in_)
 	r.prev_down = r.down
 	r.prev_keys = r.keys
 	r.wheel = {}
 	r.text = ""
+	return in_
 }
 
 move :: proc(r: ^Rig, x, y: f32) {
