@@ -242,10 +242,28 @@ focus_collect :: proc(n: ^Node, out: ^[dynamic]^Node) {
 	}
 }
 
+// Drops the focus on an Escape that nothing took this pass. Runs at end_frame,
+// so a widget that closes its own popup with the Escape keeps the focus. The
+// drop lands with the next pass, like set_focus.
 @(private)
-step_focus_keys :: proc(ctx: ^Context) {
-	if .Escape in ctx.input.keys_pressed {
-		ctx.focus_id = 0
+step_focus_escape :: proc(ctx: ^Context) {
+	if ctx.focus_next_set || .Escape in ctx.keys_eaten {
+		return
+	}
+	escape := false
+	if ctx.key_events != nil {
+		for ev in ctx.key_events {
+			if !ev.consumed && ev.key == .Escape && ev.action != .Release {
+				escape = true
+				break
+			}
+		}
+	} else {
+		escape = .Escape in ctx.input.keys_pressed
+	}
+	if escape {
+		ctx.focus_next = 0
+		ctx.focus_next_set = true
 	}
 }
 
@@ -385,7 +403,6 @@ recompute_states :: proc(ctx: ^Context) {
 		ctx.scroll_id = scroller
 
 		step_mouse(ctx, hit)
-		step_focus_keys(ctx)
 		step_activate(ctx)
 		route_wheel(ctx)
 	} else {

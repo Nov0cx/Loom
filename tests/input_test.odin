@@ -859,7 +859,53 @@ test_escape_clears_focus :: proc(t: ^testing.T) {
 	rig_open(&r)
 	form()
 	ui.end_frame()
+	key_up(&r, .Escape)
+	rig_open(&r)
+	form()
+	ui.end_frame()
 	testing.expect(t, ui.focused() == nil, "escape clears focus")
+}
+
+// Sends one Escape press, read by `take` when it is set, then a quiet frame.
+escape_event :: proc(r: ^Rig, take: proc()) {
+	events := []ui.Key_Event{{key = .Escape, action = .Press}}
+	key_down(r, .Escape)
+	rig_open(r, events = events)
+	form()
+	if take != nil {
+		take()
+	}
+	ui.end_frame()
+	key_up(r, .Escape)
+	rig_open(r)
+	form()
+	ui.end_frame()
+}
+
+// An Escape a widget took, to close its own popup, keeps the focus.
+@(test)
+test_consumed_escape_keeps_focus :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, -1, -1)
+	rig_open(&r)
+	form()
+	ui.end_frame()
+
+	f := tab_event(&r, {})
+	testing.expect_value(t, ui.focused().id, f.a.id)
+
+	escape_event(&r, proc() {_ = ui.take_key(.Escape)})
+	testing.expect(t, ui.focused() != nil && ui.focused().id == f.a.id, "a taken escape keeps focus")
+
+	escape_event(&r, proc() {ui.consume_key(.Escape)})
+	testing.expect(t, ui.focused() != nil && ui.focused().id == f.a.id, "a consumed escape keeps focus")
+
+	escape_event(&r, nil)
+	testing.expect(t, ui.focused() == nil, "an untaken escape clears focus")
 }
 
 @(test)

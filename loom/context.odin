@@ -379,6 +379,7 @@ finish_pass :: proc(ctx: ^Context) {
 	ctx.in_frame = false
 
 	step_focus_tab(ctx)
+	step_focus_escape(ctx)
 
 	settle_docks(ctx)
 	cascade(ctx)
