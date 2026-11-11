@@ -81,6 +81,7 @@ Context :: struct {
 	focus_id:          Id,
 	focus_next:        Id,
 	focus_next_set:    bool,
+	select_all_id:     Id, // the input that selects its whole text when next declared
 	capture_id:        Id,
 	capture_implicit:  bool,
 	keys_eaten:        Key_Set,

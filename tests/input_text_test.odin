@@ -141,6 +141,32 @@ test_input_selection_is_replaced_by_typing :: proc(t: ^testing.T) {
 	testing.expect_value(t, st_of(it).caret, 3)
 }
 
+// A prefilled field selected with input_select_all is replaced by the first key typed.
+@(test)
+test_input_select_all_replaces_a_prefill :: proc(t: ^testing.T) {
+	p: Clip_Probe
+	ctx: ui.Context
+	clipped(&ctx, &p)
+	defer clip_free(&p)
+	defer ui.destroy(&ctx)
+
+	buf := make([dynamic]byte)
+	defer delete(buf)
+
+	r: Rig
+	it := focus_input(&r, &buf)
+	ui.buf_set(&buf, "thor")
+	ui.input_select_all(it.id)
+	it = in_frame(&r, &buf)
+	testing.expect_value(t, st_of(it).anchor, 0)
+	testing.expect_value(t, st_of(it).caret, 4)
+
+	typed(&r, "editor")
+	it = in_frame(&r, &buf)
+	testing.expect_value(t, ui.buf_text(&buf), "editor")
+	testing.expect_value(t, st_of(it).caret, 6)
+}
+
 @(test)
 test_input_backspace_eats_a_selection_not_a_rune :: proc(t: ^testing.T) {
 	p: Clip_Probe

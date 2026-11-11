@@ -525,6 +525,12 @@ hit_offset :: proc(op: ^Input_Ops, style: Text_Style, view_x: f32) -> int {
 	return offset_at_st(ctx, style, buf_text(op.buf), ctx.input.mouse.x - view_x + op.st.scroll_x)
 }
 
+// Selects the whole text of the input `id` the next time it is declared, so a
+// prefilled field is replaced by the first key typed.
+input_select_all :: proc(id: Id) {
+	ctx_of().select_all_id = id
+}
+
 input :: proc(
 	buf: ^[dynamic]byte,
 	el: Element = {},
@@ -559,6 +565,11 @@ input :: proc(
 	live := .Disabled not_in e.flags && .Disabled not_in it.state
 
 	s := buf_text(buf)
+	if ctx.select_all_id != 0 && ctx.select_all_id == it.id {
+		ctx.select_all_id = 0
+		st.anchor = 0
+		st.caret = len(s)
+	}
 	st.caret = rune_align(s, st.caret)
 	st.anchor = rune_align(s, st.anchor)
 
