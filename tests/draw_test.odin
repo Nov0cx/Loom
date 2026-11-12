@@ -83,11 +83,13 @@ test_draw_golden_small_tree :: proc(t: ^testing.T) {
 	list := ui.end_frame()
 
 	got := ui.dump_list_string(list, context.temp_allocator)
-	expected := `rect(0,0,220,600) bg=#1C1C21FF r=(6,6,6,6) border=(1,1,1,1)/#2E2E36FF
+	// The border paints after the children, so a child in a corner does not cover it.
+	expected := `rect(0,0,220,600) bg=#1C1C21FF r=(6,6,6,6)
 push_clip(1,1,218,598) r=(5,5,5,5)
   text(13,25) "Library" f=0 s=16 #E4E4EBFF
   rect(13,29,194,32) bg=#6366F1FF
 pop_clip
+rect(0,0,220,600) r=(6,6,6,6) border=(1,1,1,1)/#2E2E36FF
 `
 	testing.expect_value(t, got, expected)
 }

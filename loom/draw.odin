@@ -98,6 +98,14 @@ Emitter :: struct {
 	cmds:     [dynamic]Draw_Command,
 	clip_at:  [MAX_CLIP_DEPTH]int,
 	clip_top: int,
+	// Borders of open nodes, painted once their children are done.
+	borders:  [dynamic]Pending_Border,
+}
+
+@(private)
+Pending_Border :: struct {
+	depth: int,
+	cmd:   Cmd_Rect,
 }
 
 @(private)
@@ -390,13 +398,14 @@ emit_order :: proc(ctx: ^Context, order: []Paint_Entry, debug: bool) -> (Draw_Li
 	e := Emitter {
 		ctx  = ctx,
 		cmds = make([dynamic]Draw_Command, 0, max(ctx.live_nodes * 2, 64), ctx.frame_allocator),
+		borders = make([dynamic]Pending_Border, 0, 16, ctx.frame_allocator),
 	}
 
 	for entry in order {
-		unwind_clips(&e, entry.depth)
+		unwind(&e, entry.depth)
 		emit_entry(&e, entry)
 	}
-	unwind_clips(&e, 0)
+	unwind(&e, 0)
 
 	count := len(e.cmds)
 	if debug {
@@ -418,11 +427,22 @@ open_clip :: proc(e: ^Emitter, depth: int, rect: Rect, radius: Radius) {
 	emit_cmd(e, Cmd_Push_Clip{rect = rect, radius = radius})
 }
 
+// Closes the clips and paints the pending borders of every node at `depth` or
+// deeper, deepest first. A node's own clip closes before its border paints.
 @(private)
-unwind_clips :: proc(e: ^Emitter, depth: int) {
-	for e.clip_top > 0 && e.clip_at[e.clip_top - 1] >= depth {
-		e.clip_top -= 1
-		emit_cmd(e, Cmd_Pop_Clip{})
+unwind :: proc(e: ^Emitter, depth: int) {
+	for {
+		clip_d := e.clip_top > 0 ? e.clip_at[e.clip_top - 1] : -1
+		border_d := len(e.borders) > 0 ? e.borders[len(e.borders) - 1].depth : -1
+		if clip_d < depth && border_d < depth {
+			return
+		}
+		if clip_d >= border_d {
+			e.clip_top -= 1
+			emit_cmd(e, Cmd_Pop_Clip{})
+		} else {
+			emit_cmd(e, pop(&e.borders).cmd)
+		}
 	}
 }
 
@@ -438,7 +458,7 @@ emit_entry :: proc(e: ^Emitter, entry: Paint_Entry) {
 		return
 	}
 
-	emit_rect(e, n, entry.alpha)
+	emit_rect(e, n, entry.alpha, entry.depth)
 
 	if entry.clips {
 		open_clip(e, entry.depth, clip_box(n), clip_radius(n))
@@ -452,7 +472,7 @@ emit_entry :: proc(e: ^Emitter, entry: Paint_Entry) {
 }
 
 @(private)
-emit_rect :: proc(e: ^Emitter, n: ^Node, alpha: f32) {
+emit_rect :: proc(e: ^Emitter, n: ^Node, alpha: f32, depth: int) {
 	p := &n.computed
 	if !paint_visible(p.bg) && !border_visible(p.border) && !shadow_visible(p.shadow) {
 		return
@@ -478,6 +498,15 @@ emit_rect :: proc(e: ^Emitter, n: ^Node, alpha: f32) {
 	}
 	if !paint_visible(cmd.paint) && !border_visible(cmd.border) && !shadow_visible(cmd.shadow) {
 		return
+	}
+	// The border paints over the children, so a child that fills a corner
+	// does not cover the outline.
+	if border_visible(cmd.border) && n.first_child != nil {
+		append(&e.borders, Pending_Border{depth = depth, cmd = {rect = cmd.rect, radius = cmd.radius, border = cmd.border}})
+		cmd.border = {}
+		if !paint_visible(cmd.paint) && !shadow_visible(cmd.shadow) {
+			return
+		}
 	}
 	emit_cmd(e, cmd)
 }
