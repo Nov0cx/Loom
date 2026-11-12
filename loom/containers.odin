@@ -18,6 +18,12 @@ TOOLTIP_RADIUS :: f32(6)
 TOOLTIP_MAX_W :: f32(320)
 TOOLTIP_GAP :: f32(6)
 
+// Where a tooltip card sits relative to its anchor.
+Tooltip_Side :: enum u8 {
+	Below,
+	Right,
+}
+
 BARS_KEY :: "loom.bars"
 
 @(private)
@@ -240,6 +246,7 @@ tooltip :: proc(
 	for_id: Id,
 	delay: f32 = TOOLTIP_DELAY,
 	el: Element = {},
+	side := Tooltip_Side.Below,
 	loc := #caller_location,
 ) -> Interaction {
 	ctx := ctx_of(loc)
@@ -273,10 +280,22 @@ tooltip :: proc(
 	// inside the anchor's own width.
 	vp := ctx.input.viewport
 	p := Vec2{a.rect.x, a.rect.y + a.rect.h + TOOLTIP_GAP}
+	if side == .Right {
+		p = {a.rect.x + a.rect.w + TOOLTIP_GAP, a.rect.y}
+	}
 	if prev != nil {
-		p.x = clamp(ctx.input.mouse.x - TOOLTIP_GAP, a.rect.x, max(a.rect.x, a.rect.x + a.rect.w - prev.rect.w))
-		if p.y + prev.rect.h > vp.y {
-			p.y = a.rect.y - prev.rect.h - TOOLTIP_GAP
+		switch side {
+		case .Below:
+			p.x = clamp(ctx.input.mouse.x - TOOLTIP_GAP, a.rect.x, max(a.rect.x, a.rect.x + a.rect.w - prev.rect.w))
+			if p.y + prev.rect.h > vp.y {
+				p.y = a.rect.y - prev.rect.h - TOOLTIP_GAP
+			}
+		case .Right:
+			// Beside the anchor, so the rows under it stay visible.
+			p.y = a.rect.y + (a.rect.h - prev.rect.h) / 2
+			if p.x + prev.rect.w > vp.x {
+				p.x = a.rect.x - prev.rect.w - TOOLTIP_GAP
+			}
 		}
 		p.x = clamp(p.x, 0, max(vp.x - prev.rect.w, 0))
 		p.y = clamp(p.y, 0, max(vp.y - prev.rect.h, 0))
