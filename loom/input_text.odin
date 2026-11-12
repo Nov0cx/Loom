@@ -10,6 +10,8 @@ INPUT_PAD :: Edges{8, 6, 8, 6}
 INPUT_RADIUS :: f32(6)
 INPUT_MIN_W :: f32(40)
 CARET_W :: f32(1)
+// Room left of the text, so a caret at offset 0 does not cover the first glyph.
+CARET_GAP :: f32(2)
 BLINK_PERIOD :: f32(1.0)
 UNDO_COALESCE :: f64(1.0)
 UNDO_MAX :: 128
@@ -575,8 +577,8 @@ input :: proc(
 
 	style := input_style(ctx, it.node)
 	view := node_alive(ctx, hash_string(it.id, VIEW_KEY))
-	view_w := view != nil ? view.rect.w : 0
-	view_x := view != nil ? view.rect.x : 0
+	view_w := view != nil ? max(view.rect.w - CARET_GAP, 0) : 0
+	view_x := view != nil ? view.rect.x + CARET_GAP : 0
 
 	op := Input_Ops {
 		ctx = ctx,
@@ -640,7 +642,7 @@ input :: proc(
 			key = SEL_KEY,
 			props = {
 				position = .Absolute,
-				inset = {l = sel_lo - st.scroll_x},
+				inset = {l = CARET_GAP + sel_lo - st.scroll_x},
 				w = Px(it.focused ? sel_hi - sel_lo : 0),
 				h = Pct(100),
 				bg = t.selection,
@@ -656,7 +658,7 @@ input :: proc(
 			props = {
 				w = FIT,
 				h = FIT,
-				margin = {l = -st.scroll_x},
+				margin = {l = CARET_GAP - st.scroll_x},
 				text_wrap = .None,
 				color = empty ? t.text_faint : nil,
 			},
@@ -676,7 +678,7 @@ input :: proc(
 			key = CARET_KEY,
 			props = {
 				position = .Absolute,
-				inset = {l = cx - st.scroll_x, t = (style.line_h - caret_h) * 0.5},
+				inset = {l = CARET_GAP - CARET_W + cx - st.scroll_x, t = (style.line_h - caret_h) * 0.5},
 				w = Px(CARET_W),
 				h = Px(caret_h),
 				bg = t.text,

@@ -451,10 +451,10 @@ test_input_click_places_the_caret_at_the_nearest_boundary :: proc(t: ^testing.T)
 	in_frame(&r, &buf)
 	in_frame(&r, &buf)
 
-	it := click_input(&r, &buf, VIEW_X + 26)
+	it := click_input(&r, &buf, VIEW_X + ui.CARET_GAP + 26)
 	testing.expect_value(t, st_of(it).caret, 3)
 
-	it = click_input(&r, &buf, VIEW_X + 24)
+	it = click_input(&r, &buf, VIEW_X + ui.CARET_GAP + 24)
 	testing.expect_value(t, st_of(it).caret, 2)
 }
 
