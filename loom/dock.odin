@@ -61,10 +61,12 @@ Dock_Zone :: enum u8 {
 Dock_Id :: distinct u64
 
 Dock_Config :: struct {
-	mode:       Dock_Mode,
-	tab_height: f32,
-	splitter:   f32,
-	min_panel:  Vec2,
+	mode:         Dock_Mode,
+	tab_height:   f32,
+	splitter:     f32,
+	// The grab width of a splitter, at least `splitter`. 0 means `splitter`.
+	splitter_hit: f32,
+	min_panel:    Vec2,
 }
 
 Dock_Tab :: struct {
@@ -1090,6 +1092,7 @@ dock_splitter :: proc(
 	e.props.cursor = n.dir == .Row ? .Resize_H : .Resize_V
 	e.props.z = 2
 	e.hover = {bg = t.accent}
+	e.hit_pad = max(sp.cfg.splitter_hit - sp.cfg.splitter, 0) / 2
 
 	it := leaf(e, loc)
 	it.node.viewport = n.viewport

@@ -160,6 +160,14 @@ set_tooltips_enabled :: proc(on: bool) {
 	ctx_of().cfg.no_tooltips = !on
 }
 
+// Turns reduced motion on or off: no transitions, no scroll-to tween, no
+// scroll inertia and no caret blink.
+set_reduce_motion :: proc(on: bool) {
+	ctx := ctx_of()
+	ctx.cfg.no_anim = on
+	ctx.cfg.no_scroll_inertia = on
+}
+
 // Puts the scroll of `n` at `v` on `ax`, stopping any animation on the way there.
 set_scroll :: proc(n: ^Node, ax: Axis, v: f32) {
 	if ax == .X {

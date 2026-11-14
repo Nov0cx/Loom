@@ -70,6 +70,18 @@ scrolling one, `.Wheel`, or `.Hoverable`. `.Hoverable` is the one that is no but
 chip that only wants to hover, to wear a hover style or to carry a `tooltip`. It takes the hit from
 whatever is under it, so never put one over a node that must stay clicked.
 
+`Element.hit_pad` grows the hit area on each side and leaves the drawn rect as it is, for a thin
+splitter or a small icon. `Dock_Config.splitter_hit` gives the dock splitters a grab width larger
+than the bar they draw.
+
+## Motion
+
+`Element.transition` animates the listed props of a node toward their new value. `Transition.snap`
+names states that take their target at once and animate only on the way out: `snap = {.Hover,
+.Active}` gives an instant hover in and a fade out. `.No_Anim` turns one node off;
+`set_reduce_motion(true)` (or `Config.no_anim`) turns off every transition, the scroll-to tween,
+scroll inertia and the caret blink of `input`.
+
 ## Keys
 
 `Input.keys_down` and `Input.keys_pressed` answer "is it down", and `Input.key_events` is the ordered
@@ -93,6 +105,10 @@ if ui.focus_within(pane) {      // a widget takes what is left, if it has the fo
 	if ui.take_key(.S, {.Ctrl}) { save() }
 }
 ```
+
+Tab and Shift+Tab that nothing took move the focus over `.Focusable` nodes in tree order.
+`Element.focus_scope` keeps that cycle inside a subtree: the nearest scope above the focus, or the
+last scope declared when the focus is outside every scope. A modal sets it on its root.
 
 ## Text
 

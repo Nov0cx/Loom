@@ -617,7 +617,7 @@ input :: proc(
 	}
 
 	blink_on := true
-	if it.focused {
+	if it.focused && !ctx.cfg.no_anim {
 		st.blink += ctx.input.dt
 		blink_on = math.mod(st.blink, BLINK_PERIOD) < BLINK_PERIOD * 0.5
 		request_frame(loc)

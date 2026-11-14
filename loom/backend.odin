@@ -93,6 +93,9 @@ Config :: struct {
 	no_scroll_inertia: bool,
 	// Hides every tooltip. A host that lets the user turn them off sets it.
 	no_tooltips:       bool,
+	// Turns off every transition, the scroll-to tween, scroll inertia and the
+	// caret blink of `input`. A host with a reduce-motion setting sets it.
+	no_anim:           bool,
 	max_passes:        u32,
 	frame_allocator:   runtime.Allocator,
 }

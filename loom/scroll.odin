@@ -206,7 +206,7 @@ scroll_to :: proc(id: Id, animated := true) {
 	}
 
 	sc.scroll_vel = {}
-	if !animated {
+	if !animated || ctx.cfg.no_anim {
 		sc.scroll = to
 		sc.scroll_want = to
 		if tw := find_tween(sc); tw != nil {

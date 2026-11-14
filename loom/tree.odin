@@ -49,6 +49,12 @@ Element :: struct {
 	rules:       []Rule,
 	transition:  Transition,
 	state:       State_Set,
+	// Grows the hit area by this much on each side; the drawn rect stays. For a
+	// thin splitter or a small icon.
+	hit_pad:     f32,
+	// Tab and Shift+Tab stay inside this subtree while it holds the focus, or
+	// while it is the last scope declared and the focus is outside every scope.
+	focus_scope: bool,
 }
 
 Node :: struct {

@@ -22,7 +22,11 @@ hit_target :: proc(n: ^Node) -> bool {
 hit_test :: proc(ctx: ^Context, order: []Paint_Entry, p: Vec2) -> (hovered, scroller: Id) {
 	#reverse for e in order {
 		n := e.node
-		if !rect_contains(n.rect, p) || !rect_contains(e.clip, p) {
+		r := n.rect
+		if pad := n.el.hit_pad; pad > 0 {
+			r = {r.x - pad, r.y - pad, r.w + 2 * pad, r.h + 2 * pad}
+		}
+		if !rect_contains(r, p) || !rect_contains(e.clip, p) {
 			continue
 		}
 		if .Disabled in n.state {
@@ -223,10 +227,39 @@ step_double_click :: proc(ctx: ^Context, hit: Id) {
 @(private)
 focus_order :: proc(ctx: ^Context) -> []^Node {
 	out := make([dynamic]^Node, 0, 16, ctx.frame_allocator)
-	if ctx.root != nil {
-		focus_collect(ctx.root, &out)
+	if root := focus_scope_root(ctx); root != nil {
+		focus_collect(root, &out)
 	}
 	return out[:]
+}
+
+// The subtree Tab cycles in: the nearest focus scope above the focus, else the
+// last scope in tree order, else the whole tree.
+@(private)
+focus_scope_root :: proc(ctx: ^Context) -> ^Node {
+	if f := node_alive(ctx, ctx.focus_id); f != nil {
+		for n := f; n != nil; n = n.parent {
+			if n.el.focus_scope {
+				return n
+			}
+		}
+	}
+	if ctx.root == nil {
+		return nil
+	}
+	last: ^Node
+	focus_last_scope(ctx.root, &last)
+	return last if last != nil else ctx.root
+}
+
+@(private)
+focus_last_scope :: proc(n: ^Node, last: ^^Node) {
+	if n.el.focus_scope {
+		last^ = n
+	}
+	for c := n.first_child; c != nil; c = c.next {
+		focus_last_scope(c, last)
+	}
 }
 
 @(private)

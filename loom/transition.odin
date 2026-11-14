@@ -256,6 +256,7 @@ animate_node :: proc(ctx: ^Context, n: ^Node, resolved: Props) {
 		tr.props != {} &&
 		(tr.dur > 0 || tr.ease == .Spring) &&
 		.No_Anim not_in n.flags &&
+		!ctx.cfg.no_anim &&
 		!n.first_frame
 
 	if !live {
@@ -264,6 +265,14 @@ animate_node :: proc(ctx: ^Context, n: ^Node, resolved: Props) {
 	}
 
 	an := (^Anim)(state_raw(ctx, n, Anim, size_of(Anim), align_of(Anim), nil))
+
+	if n.state & tr.snap != {} {
+		for prop in tr.props {
+			an.slots[prop].active = false
+		}
+		n.computed = target
+		return
+	}
 
 	for prop in tr.props {
 		s := &an.slots[prop]

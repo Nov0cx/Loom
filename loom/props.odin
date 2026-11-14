@@ -312,4 +312,8 @@ Transition :: struct {
 	dur:   f32,
 	delay: f32,
 	ease:  Ease,
+	// States that snap: a node that enters one of them takes its target at
+	// once, and animates only on the way out. {.Hover, .Active} gives an
+	// instant hover in and a fade out.
+	snap:  State_Set,
 }
