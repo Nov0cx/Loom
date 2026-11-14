@@ -261,6 +261,9 @@ animate_node :: proc(ctx: ^Context, n: ^Node, resolved: Props) {
 
 	if !live {
 		n.computed = target
+		if n.first_frame && tr.props != {} && !ctx.cfg.no_anim && .No_Anim not_in n.flags {
+			merge(&n.computed, n.el.enter)
+		}
 		return
 	}
 

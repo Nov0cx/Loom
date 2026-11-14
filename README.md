@@ -82,6 +82,10 @@ names states that take their target at once and animate only on the way out: `sn
 `set_reduce_motion(true)` (or `Config.no_anim`) turns off every transition, the scroll-to tween,
 scroll inertia and the caret blink of `input`.
 
+A new node takes no transition on its first frame. `Element.enter` names the props it starts from
+instead, and it then animates to its own: `enter = {opacity = 0}` with an opacity transition fades a
+modal in.
+
 ## Keys
 
 `Input.keys_down` and `Input.keys_pressed` answer "is it down", and `Input.key_events` is the ordered

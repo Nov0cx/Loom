@@ -160,3 +160,32 @@ test_focus_visible_follows_the_keyboard :: proc(t: ^testing.T) {
 	testing.expect_value(t, ui.focused().id, f.b.id)
 	testing.expect(t, .Focus_Visible not_in ui.focused().state, "a click does not")
 }
+
+@(test)
+test_enter_props_fade_a_new_node_in :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	styled(&ctx)
+	defer ui.destroy(&ctx)
+
+	el := ui.Element {
+		key        = "a",
+		props      = {opacity = 1},
+		enter      = {opacity = 0},
+		transition = {props = {.Opacity}, dur = 0.1},
+	}
+	step :: proc(el: ui.Element) -> f32 {
+		frame_dt(1.0 / 60.0)
+		n := ui.leaf(el).node
+		ui.end_frame()
+		v, _ := n.computed.opacity.?
+		return v
+	}
+
+	testing.expect_value(t, step(el), 0)
+	v := step(el)
+	testing.expect(t, v > 0 && v < 1, "the node fades in")
+	for _ in 0 ..< 10 {
+		v = step(el)
+	}
+	testing.expect_value(t, v, 1)
+}

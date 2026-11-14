@@ -52,6 +52,9 @@ Element :: struct {
 	// Grows the hit area by this much on each side; the drawn rect stays. For a
 	// thin splitter or a small icon.
 	hit_pad:     f32,
+	// The props a new node takes on its first frame. It then animates to its
+	// own with its transition: `enter = {opacity = 0}` fades it in.
+	enter:       Props,
 	// Tab and Shift+Tab stay inside this subtree while it holds the focus, or
 	// while it is the last scope declared and the focus is outside every scope.
 	focus_scope: bool,
