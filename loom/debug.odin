@@ -168,6 +168,8 @@ state_name :: proc(s: State) -> string {
 		return "open"
 	case .Group_Hover:
 		return "group-hover"
+	case .Focus_Visible:
+		return "focus-visible"
 	}
 	return "?"
 }

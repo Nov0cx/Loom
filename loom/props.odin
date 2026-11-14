@@ -287,6 +287,8 @@ State :: enum u8 {
 	Checked,
 	Open,
 	Group_Hover,
+	// The focus came from the keyboard: Tab or Shift+Tab. A click clears it.
+	Focus_Visible,
 }
 
 State_Set :: bit_set[State;u16]

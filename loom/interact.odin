@@ -190,6 +190,7 @@ press_left :: proc(ctx: ^Context, hit: Id) {
 	}
 	if .Focusable in n.flags {
 		ctx.focus_id = hit
+		ctx.focus_visible = false
 		return
 	}
 	if !is_in_subtree(ctx, ctx.focus_id, n) {
@@ -350,6 +351,7 @@ step_focus_tab :: proc(ctx: ^Context) {
 	}
 	ctx.focus_next = list[idx].id
 	ctx.focus_next_set = true
+	ctx.focus_visible = true
 }
 
 @(private)
@@ -398,6 +400,9 @@ apply_input_states :: proc(ctx: ^Context) {
 	}
 	if n := node_alive(ctx, ctx.focus_id); n != nil {
 		n.input_state += {.Focus}
+		if ctx.focus_visible {
+			n.input_state += {.Focus_Visible}
+		}
 	}
 	if n := node_alive(ctx, active_id(ctx)); n != nil {
 		n.input_state += {.Active}

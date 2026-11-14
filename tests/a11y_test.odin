@@ -129,3 +129,34 @@ test_snap_state_is_instant_in_and_fades_out :: proc(t: ^testing.T) {
 	v := step(el)
 	testing.expect(t, v > 0 && v < 1, "the way out animates")
 }
+
+@(test)
+test_focus_visible_follows_the_keyboard :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, -1, -1)
+	rig_open(&r)
+	form()
+	ui.end_frame()
+
+	f := tab(&r)
+	testing.expect_value(t, ui.focused().id, f.a.id)
+	testing.expect(t, .Focus_Visible in ui.focused().state, "a Tab shows the ring")
+
+	move(&r, 50, 75)
+	press(&r)
+	rig_open(&r)
+	form()
+	ui.end_frame()
+	release(&r)
+	for _ in 0 ..< 2 {
+		rig_open(&r)
+		f = form()
+		ui.end_frame()
+	}
+	testing.expect_value(t, ui.focused().id, f.b.id)
+	testing.expect(t, .Focus_Visible not_in ui.focused().state, "a click does not")
+}

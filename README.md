@@ -109,6 +109,9 @@ if ui.focus_within(pane) {      // a widget takes what is left, if it has the fo
 Tab and Shift+Tab that nothing took move the focus over `.Focusable` nodes in tree order.
 `Element.focus_scope` keeps that cycle inside a subtree: the nearest scope above the focus, or the
 last scope declared when the focus is outside every scope. A modal sets it on its root.
+A node with the focus also has the state `.Focus_Visible` when the focus came from Tab or Shift+Tab,
+and not when a click moved it. A focus ring keyed on it (a `Rule` with `on = {.Focus_Visible}`)
+shows for the keyboard only.
 
 ## Text
 
