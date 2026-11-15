@@ -59,6 +59,8 @@ CURSORS := []ui.Cursor {
 	.Text,
 	.Resize_H,
 	.Resize_V,
+	.Resize_NWSE,
+	.Resize_NESW,
 	.Grab,
 	.Grabbing,
 	.Not_Allowed,
@@ -454,6 +456,10 @@ cursor_name :: proc(cur: ui.Cursor) -> string {
 		return "resize-h"
 	case .Resize_V:
 		return "resize-v"
+	case .Resize_NWSE:
+		return "resize-nwse"
+	case .Resize_NESW:
+		return "resize-nesw"
 	case .Grab:
 		return "grab"
 	case .Grabbing:

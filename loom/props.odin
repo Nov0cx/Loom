@@ -71,6 +71,8 @@ Cursor :: enum u8 {
 	Text,
 	Resize_H,
 	Resize_V,
+	Resize_NWSE,
+	Resize_NESW,
 	Grab,
 	Grabbing,
 	Not_Allowed,

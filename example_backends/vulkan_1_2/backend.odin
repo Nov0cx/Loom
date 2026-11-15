@@ -212,6 +212,8 @@ init :: proc(
 		.Text        = glfw.IBEAM_CURSOR,
 		.Resize_H    = glfw.RESIZE_EW_CURSOR,
 		.Resize_V    = glfw.RESIZE_NS_CURSOR,
+		.Resize_NWSE = glfw.RESIZE_NWSE_CURSOR,
+		.Resize_NESW = glfw.RESIZE_NESW_CURSOR,
 		.Grab        = glfw.POINTING_HAND_CURSOR,
 		.Grabbing    = glfw.RESIZE_ALL_CURSOR,
 		.Not_Allowed = glfw.NOT_ALLOWED_CURSOR,
