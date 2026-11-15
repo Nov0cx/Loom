@@ -85,6 +85,7 @@ Dock_Home :: struct {
 	side:      Dock_Side,
 	ratio:     f32,
 	index:     int,
+	depth:     int, // levels from the neighbour's tabs node up to the old sibling
 }
 
 Dock_Node :: struct {
@@ -480,24 +481,27 @@ dock_home_record :: proc(ctx: ^Context, sp: ^Dock_Space, n: ^Dock_Node, idx: int
 		// dock_split_node states the ratio of the fresh node, which it puts
 		// first on Left and Top and second on Right and Bottom.
 		home.ratio = first ? p.ratio : 1 - p.ratio
-		home.neighbour = dock_first_title(sib)
+		home.neighbour, home.depth = dock_first_title(sib)
 	}
 	dock_home_set(ctx, sp, title, home)
 }
 
-// The title of any tab under a node, as the anchor a closed sibling splits off.
+// The title of any tab under a node, as the anchor a closed sibling splits off,
+// and the depth of its tabs node under `n`.
 @(private)
-dock_first_title :: proc(n: ^Dock_Node) -> string {
+dock_first_title :: proc(n: ^Dock_Node) -> (title: string, depth: int) {
 	if n == nil {
-		return ""
+		return "", 0
 	}
 	if n.kind == .Tabs {
-		return len(n.tabs) > 0 ? n.tabs[0].title : ""
+		return len(n.tabs) > 0 ? n.tabs[0].title : "", 0
 	}
-	if t := dock_first_title(n.children[0]); t != "" {
-		return t
+	for child in n.children {
+		if t, d := dock_first_title(child); t != "" {
+			return t, d + 1
+		}
 	}
-	return dock_first_title(n.children[1])
+	return "", 0
 }
 
 @(private)
@@ -538,6 +542,13 @@ dock_home_restore :: proc(ctx: ^Context, sp: ^Dock_Space, title: string) -> (^Do
 		dest = n
 	} else if home.neighbour != "" {
 		if anchor, _ := dock_find_tab(sp, home.neighbour); anchor != nil {
+			// The old sibling was a subtree above the anchor's tabs node.
+			for _ in 0 ..< home.depth {
+				if anchor.parent == nil {
+					break
+				}
+				anchor = anchor.parent
+			}
 			first, second := dock_split_node(ctx, sp, anchor, home.side, home.ratio)
 			dest = home.side == .Left || home.side == .Top ? first : second
 		}
@@ -1666,9 +1677,10 @@ dock_write_space :: proc(ctx: ^Context, w: Writer, sp: ^Dock_Space) {
 			w,
 			dock_key(ctx, HOME_PREFIX, title),
 			fmt.aprintf(
-				"%s %s %s",
+				"%s %s d%d %s",
 				dock_side_name(home.side),
 				f32_string(home.ratio, ctx.frame_allocator),
+				home.depth,
 				home.neighbour,
 				allocator = ctx.frame_allocator,
 			),
@@ -1707,7 +1719,7 @@ dock_side_of :: proc(s: string) -> Dock_Side {
 	return .Bottom
 }
 
-// `home.<title> = <side> <ratio> <neighbour>`. The neighbour is last, so a title
+// `home.<title> = <side> <ratio> [d<depth>] <neighbour>`. The neighbour is last, so a title
 // holding a space still reads back whole.
 @(private)
 dock_read_homes :: proc(ctx: ^Context, sp: ^Dock_Space) {
@@ -1729,11 +1741,18 @@ dock_read_homes :: proc(ctx: ^Context, sp: ^Dock_Space) {
 		if !ok {
 			continue
 		}
+		depth := 0
+		if tok, _, after := strings.partition(neighbour, " "); strings.has_prefix(tok, "d") {
+			if v, vok := strconv.parse_int(tok[1:]); vok && v >= 0 {
+				depth = v
+				neighbour = after
+			}
+		}
 		dock_home_set(
 			ctx,
 			sp,
 			title,
-			{side = dock_side_of(side), ratio = clamp(r, 0.05, 0.95), neighbour = neighbour},
+			{side = dock_side_of(side), ratio = clamp(r, 0.05, 0.95), neighbour = neighbour, depth = depth},
 		)
 	}
 }

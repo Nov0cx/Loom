@@ -202,3 +202,102 @@ test_dock_home_rides_the_save :: proc(t: ^testing.T) {
 	testing.expect_value(t, sp.root.children[1].tabs[0].title, "B")
 	testing.expect(t, near(sp.root.ratio, 0.6), "at the ratio it was saved with")
 }
+
+// Declares A, B and C, A behind `open`.
+@(private = "file")
+nest_frames :: proc(r: ^Rig, open: ^bool, count: int) -> ui.Dock_Id {
+	d: ui.Dock_Id
+	for _ in 0 ..< count {
+		rig_open(r)
+		d = ui.dockspace(DOCK_ID, {}, {props = {w = ui.Px(DOCK_W), h = ui.Px(DOCK_H)}})
+		for title in ([]string{"A", "B", "C"}) {
+			if ui.panel(d, title, title == "A" ? open : nil) {
+				ui.end_panel()
+			}
+		}
+		ui.end_frame()
+	}
+	return d
+}
+
+// Row[A, Column[B, C]]: A must come back beside the whole column, not beside B.
+@(private = "file")
+nest_seed :: proc(r: ^Rig, open: ^bool) -> ui.Dock_Id {
+	d := nest_frames(r, open, 3)
+	rig_open(r)
+	ui.dock_reset(d)
+	left, rest := ui.dock_split(d, "", .Left, 0.25)
+	ui.dock_panel(d, "A", left)
+	ui.dock_panel(d, "B", rest)
+	_, bottom := ui.dock_split(d, "B", .Bottom, 0.3)
+	ui.dock_panel(d, "C", bottom)
+	ui.end_frame()
+	nest_frames(r, open, 3)
+	return d
+}
+
+@(private = "file")
+expect_nest :: proc(t: ^testing.T, sp: ^ui.Dock_Space) {
+	root := sp.root
+	if !testing.expect_value(t, root.kind, ui.Dock_Kind.Split) {
+		return
+	}
+	testing.expect_value(t, root.dir, ui.Direction.Row)
+	left := root.children[0]
+	if testing.expect_value(t, left.kind, ui.Dock_Kind.Tabs) && testing.expect_value(t, len(left.tabs), 1) {
+		testing.expect_value(t, left.tabs[0].title, "A")
+	}
+	col := root.children[1]
+	testing.expect_value(t, col.kind, ui.Dock_Kind.Split)
+	testing.expect_value(t, col.dir, ui.Direction.Column)
+}
+
+@(test)
+test_dock_hidden_panel_returns_beside_the_whole_sibling :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	open := true
+	nest_seed(&r, &open)
+	sp := dock_space_of(&ctx)
+	expect_nest(t, sp)
+
+	open = false
+	nest_frames(&r, &open, 3)
+	testing.expect_value(t, sp.root.dir, ui.Direction.Column)
+
+	open = true
+	nest_frames(&r, &open, 3)
+	expect_nest(t, sp)
+}
+
+@(test)
+test_dock_home_depth_rides_the_save :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	open := true
+	d := nest_seed(&r, &open)
+	open = false
+	nest_frames(&r, &open, 3)
+
+	rig_open(&r)
+	b := strings.builder_make(context.temp_allocator)
+	ui.dock_save(d, strings.to_writer(&b))
+	text := strings.to_string(b)
+	ui.end_frame()
+	testing.expect(t, strings.contains(text, " d1 B"), "the depth is written before the neighbour")
+
+	rig_open(&r)
+	loaded := ui.dock_load(d, transmute([]byte)text)
+	ui.end_frame()
+	testing.expect(t, loaded, "the file reloads")
+
+	open = true
+	nest_frames(&r, &open, 3)
+	expect_nest(t, dock_space_of(&ctx))
+}
