@@ -433,7 +433,9 @@ recompute_states :: proc(ctx: ^Context) {
 	if ctx.root != nil {
 		hit, scroller: Id
 		if ctx.capture_id != 0 {
+			// The wheel goes to the captured node, so a drag-select can scroll.
 			hit = ctx.capture_id
+			scroller = ctx.capture_id
 		} else {
 			hit, scroller = hit_test(ctx, pointer_order(ctx), ctx.input.mouse)
 		}

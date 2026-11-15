@@ -1723,3 +1723,39 @@ test_hoverable_is_a_target_without_clicks :: proc(t: ^testing.T) {
 	testing.expect(t, .Hover in it.state, "and wears the hover state")
 	testing.expect(t, ui.wants_mouse(), "and claims the mouse")
 }
+
+drag_wheel_pane :: proc() -> ui.Interaction {
+	ui.scope({key = "root", props = {w = ui.Px(800), h = ui.Px(600)}})
+	return ui.leaf({key = "pane", flags = {.Draggable, .Wheel}, props = {w = ui.Px(200), h = ui.Px(100)}})
+}
+
+@(test)
+test_wheel_reaches_a_node_that_holds_the_capture :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	wired(&ctx)
+	defer ui.destroy(&ctx)
+
+	r: Rig
+	move(&r, 50, 50)
+	rig_open(&r)
+	drag_wheel_pane()
+	ui.end_frame()
+
+	press(&r)
+	rig_open(&r)
+	drag_wheel_pane()
+	ui.end_frame()
+
+	move(&r, 300, 300)
+	rig_open(&r)
+	drag_wheel_pane()
+	ui.end_frame()
+
+	spin(&r, 0, 1)
+	rig_open(&r)
+	it := drag_wheel_pane()
+	ui.end_frame()
+
+	testing.expect(t, it.dragging, "the drag is still open")
+	testing.expect_value(t, it.wheel.y, f32(1))
+}
