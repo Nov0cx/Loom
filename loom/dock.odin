@@ -67,6 +67,8 @@ Dock_Config :: struct {
 	// The grab width of a splitter, at least `splitter`. 0 means `splitter`.
 	splitter_hit: f32,
 	min_panel:    Vec2,
+	bar:          Props,
+	tab:          Element,
 }
 
 Dock_Tab :: struct {
@@ -969,6 +971,7 @@ dock_tab_bar :: proc(
 	bar.props.gap = {DOCK_TAB_GAP, 0}
 	bar.props.bg = t.raised
 	bar.props.z = 1
+	merge(&bar.props, sp.cfg.bar)
 
 	bit := begin(bar, loc)
 	bit.node.viewport = n.viewport
@@ -1020,6 +1023,8 @@ dock_tab :: proc(
 		rules = rule_one(ctx, {.Checked}, {bg = t.bg, color = t.text}),
 		state = on ? {.Checked} : {},
 	}
+	merge_element(&e, sp.cfg.tab, loc)
+	e.key = tab.title
 
 	it := begin(e, loc)
 	// The same box height as the close button: text_align_v centers the ink in

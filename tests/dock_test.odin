@@ -91,6 +91,35 @@ dock_splitter_node :: proc(sp: ^ui.Dock_Space, dn: ^ui.Dock_Node) -> ^ui.Node {
 	return ui.find(ui.hash_string(seed, "loom.docksplit"))
 }
 
+@(test)
+test_dock_config_styles_the_bar_and_the_tabs :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	laid(&ctx)
+	defer ui.destroy(&ctx)
+
+	BAR :: ui.Color{1, 2, 3, 255}
+	LINE :: ui.Color{200, 10, 10, 255}
+	on := []ui.Rule{{on = {.Checked}, props = {border = {width = {b = 2}, color = LINE}}}}
+	cfg := ui.Dock_Config {
+		bar = {bg = BAR},
+		tab = {props = {clear = {.Radius}}, rules = on},
+	}
+
+	r: Rig
+	dock_frames(&r, {"A", "B"}, 3, cfg)
+
+	sp := dock_space_of(&ctx)
+	bar := dock_bar_node(sp, sp.root)
+	a := dock_tab_node(sp, sp.root, "A")
+	b := dock_tab_node(sp, sp.root, "B")
+	testing.expect(t, bar != nil && a != nil && b != nil, "the bar and both tabs keep their ids")
+	testing.expect_value(t, bar.computed.bg.(ui.Color), BAR)
+	testing.expect_value(t, a.computed.radius, ui.Radius{})
+	testing.expect_value(t, a.computed.border.width.b, 2)
+	testing.expect_value(t, a.computed.border.color, LINE)
+	testing.expect_value(t, b.computed.border.width.b, 0)
+}
+
 dock_center :: proc(r: ui.Rect) -> ui.Vec2 {
 	return {r.x + r.w * 0.5, r.y + r.h * 0.5}
 }

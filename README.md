@@ -74,6 +74,10 @@ whatever is under it, so never put one over a node that must stay clicked.
 splitter or a small icon. `Dock_Config.splitter_hit` gives the dock splitters a grab width larger
 than the bar they draw.
 
+`Dock_Config.bar` merges over the props of every tab bar, and `Dock_Config.tab` over every tab, its
+state props and rules included. A rule on `.Checked` styles the active tab; `clear` drops a default,
+such as the tab radius.
+
 ## Motion
 
 `Element.transition` animates the listed props of a node toward their new value. `Transition.snap`
