@@ -318,4 +318,8 @@ Transition :: struct {
 	// once, and animates only on the way out. {.Hover, .Active} gives an
 	// instant hover in and a fade out.
 	snap:  State_Set,
+	// States whose exit alone animates: a change on any other frame takes its
+	// target at once. {.Hover} fades a list row out of its hover, but a row the
+	// selection leaves by key changes at once. Empty animates each change.
+	leave: State_Set,
 }

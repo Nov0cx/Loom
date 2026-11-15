@@ -30,6 +30,7 @@ Anim_Slot :: struct {
 @(private)
 Anim :: struct {
 	slots: [Prop]Anim_Slot,
+	state: State_Set,
 }
 
 ease_at :: proc(e: Ease, x: f32) -> f32 {
@@ -268,6 +269,8 @@ animate_node :: proc(ctx: ^Context, n: ^Node, resolved: Props) {
 	}
 
 	an := (^Anim)(state_raw(ctx, n, Anim, size_of(Anim), align_of(Anim), nil))
+	leaving := tr.leave == {} || (an.state & tr.leave != {} && n.state & tr.leave == {})
+	an.state = n.state
 
 	if n.state & tr.snap != {} {
 		for prop in tr.props {
@@ -297,6 +300,10 @@ animate_node :: proc(ctx: ^Context, n: ^Node, resolved: Props) {
 		}
 
 		if changed || !s.active {
+			if !leaving {
+				s.active = false
+				continue
+			}
 			if tr.ease != .Spring {
 				s.a = cv.v
 			}

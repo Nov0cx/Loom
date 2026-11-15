@@ -78,7 +78,9 @@ than the bar they draw.
 
 `Element.transition` animates the listed props of a node toward their new value. `Transition.snap`
 names states that take their target at once and animate only on the way out: `snap = {.Hover,
-.Active}` gives an instant hover in and a fade out. `.No_Anim` turns one node off;
+.Active}` gives an instant hover in and a fade out. `Transition.leave` names states whose exit alone
+animates: with `leave = {.Hover}` a list row fades out of its hover, but a fill the selection
+changes on any other frame lands at once. `.No_Anim` turns one node off;
 `set_reduce_motion(true)` (or `Config.no_anim`) turns off every transition, the scroll-to tween,
 scroll inertia and the caret blink of `input`.
 

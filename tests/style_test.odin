@@ -556,6 +556,34 @@ test_spring_settles_exactly :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_transition_leave_animates_only_the_exit :: proc(t: ^testing.T) {
+	ctx: ui.Context
+	styled(&ctx)
+	defer ui.destroy(&ctx)
+
+	el := ui.Element {
+		key        = "a",
+		props      = {bg = RED},
+		hover      = {bg = BLUE},
+		transition = {props = {.Bg}, dur = 0.5, leave = {.Hover}},
+	}
+	one(el)
+
+	el.state = {.Hover}
+	testing.expect_value(t, bg_color(t, one(el)), BLUE)
+
+	el.state = {}
+	out := bg_color(t, one(el))
+	testing.expect(t, out != BLUE && out != RED, "the hover exit should fade")
+
+	el.props.bg = GREEN
+	testing.expect_value(t, bg_color(t, one(el)), GREEN)
+
+	el.props.bg = RED
+	testing.expect_value(t, bg_color(t, one(el)), RED)
+}
+
+@(test)
 test_size_variant_mismatch_snaps :: proc(t: ^testing.T) {
 	ctx: ui.Context
 	styled(&ctx)
