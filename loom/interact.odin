@@ -540,6 +540,12 @@ typed_text :: proc() -> string {
 	return ctx_of().input.text
 }
 
+// Drops the text typed this frame, so no later reader or text input gets it. A
+// host calls it when it took the key that typed the text as a shortcut.
+drop_typed_text :: proc() {
+	ctx_of().input.text = ""
+}
+
 mouse_pos :: proc() -> Vec2 {
 	return ctx_of().input.mouse
 }
