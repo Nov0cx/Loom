@@ -7,9 +7,13 @@ import ui "../loom"
 INPUT_W :: f32(200)
 VIEW_X :: f32(9)
 
+// The inputs of input_tree are secret while set.
+@(thread_local)
+input_secret: bool
+
 input_tree :: proc(buf: ^[dynamic]byte, ph: string = "") -> ui.Interaction {
 	ui.scope({key = "root", props = {w = ui.Px(800), h = ui.Px(600), dir = .Column}})
-	return ui.input(buf, {key = "in", props = {w = ui.Px(INPUT_W)}}, ph)
+	return ui.input(buf, {key = "in", props = {w = ui.Px(INPUT_W)}}, ph, secret = input_secret)
 }
 
 in_frame :: proc(r: ^Rig, buf: ^[dynamic]byte, ph: string = "") -> ui.Interaction {
@@ -245,6 +249,50 @@ test_input_word_movement :: proc(t: ^testing.T) {
 }
 
 // ---- clipboard ----
+
+// A secret input shows a dot per rune, maps the caret on the dots, does not copy or cut, and
+// word moves go to the ends.
+@(test)
+test_input_secret_hides_the_text :: proc(t: ^testing.T) {
+	p: Clip_Probe
+	ctx: ui.Context
+	clipped(&ctx, &p)
+	defer clip_free(&p)
+	defer ui.destroy(&ctx)
+	input_secret = true
+	defer input_secret = false
+
+	buf := make([dynamic]byte)
+	defer delete(buf)
+
+	r: Rig
+	focus_input(&r, &buf)
+	typed(&r, "ab é")
+	it := in_frame(&r, &buf)
+	testing.expect_value(t, ui.buf_text(&buf), "ab é")
+	txt := ui.find(ui.hash_string(ui.hash_string(it.id, "view"), "txt"))
+	if testing.expect(t, txt != nil, "the input has a text node") {
+		testing.expect_value(t, txt.el.text, "••••")
+	}
+
+	mods_set(&r, .Ctrl)
+	hold(&r, &buf, .A)
+	hold(&r, &buf, .C)
+	hold(&r, &buf, .X)
+	mods_clear(&r)
+	testing.expect_value(t, string(p.buf[:]), "")
+	testing.expect_value(t, ui.buf_text(&buf), "ab é")
+
+	hold(&r, &buf, .End)
+	mods_set(&r, .Ctrl)
+	it = hold(&r, &buf, .Left)
+	mods_clear(&r)
+	testing.expect_value(t, st_of(it).caret, 0)
+
+	// A click right of the text puts the caret at the end, on a rune boundary.
+	it = click_input(&r, &buf, VIEW_X + 190)
+	testing.expect_value(t, st_of(it).caret, len("ab é"))
+}
 
 @(test)
 test_input_copy_and_paste_round_trip :: proc(t: ^testing.T) {

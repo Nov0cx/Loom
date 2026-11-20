@@ -334,6 +334,52 @@ Input_Ops :: struct {
 	buf:     ^[dynamic]byte,
 	st:      ^Input_State,
 	changed: bool,
+	secret:  bool,
+}
+
+// Glyph shown for each rune of a secret input.
+SECRET_DOT :: "•"
+
+// One SECRET_DOT per rune of `s`, on the frame allocator.
+@(private)
+mask_text :: proc(ctx: ^Context, s: string) -> string {
+	n := utf8.rune_count_in_string(s)
+	return strings.repeat(SECRET_DOT, n, ctx.frame_allocator)
+}
+
+// Byte offset in the shown text of the byte offset `at` of `s`.
+@(private)
+to_shown :: proc(s: string, at: int, secret: bool) -> int {
+	if !secret {
+		return at
+	}
+	return utf8.rune_count_in_string(s[:at]) * len(SECRET_DOT)
+}
+
+// Byte offset in `s` of the byte offset `at` of the shown text.
+@(private)
+from_shown :: proc(s: string, at: int, secret: bool) -> int {
+	if !secret {
+		return at
+	}
+	n := at / len(SECRET_DOT)
+	i := 0
+	for n > 0 && i < len(s) {
+		i = rune_next(s, i)
+		n -= 1
+	}
+	return i
+}
+
+// Word moves of a secret input go to the ends: they do not show where the words are.
+@(private)
+word_left_of :: proc(op: ^Input_Ops, s: string, at: int) -> int {
+	return op.secret ? 0 : word_left(s, at)
+}
+
+@(private)
+word_right_of :: proc(op: ^Input_Ops, s: string, at: int) -> int {
+	return op.secret ? len(s) : word_right(s, at)
 }
 
 @(private)
@@ -524,7 +570,9 @@ move_caret :: proc(st: ^Input_State, to: int, keep: bool) {
 @(private)
 hit_offset :: proc(op: ^Input_Ops, style: Text_Style, view_x: f32) -> int {
 	ctx := op.ctx
-	return offset_at_st(ctx, style, buf_text(op.buf), ctx.input.mouse.x - view_x + op.st.scroll_x)
+	s := buf_text(op.buf)
+	shown := op.secret ? mask_text(ctx, s) : s
+	return from_shown(s, offset_at_st(ctx, style, shown, ctx.input.mouse.x - view_x + op.st.scroll_x), op.secret)
 }
 
 // Selects the whole text of the input `id` the next time it is declared, so a
@@ -533,10 +581,12 @@ input_select_all :: proc(id: Id) {
 	ctx_of().select_all_id = id
 }
 
+// `secret`: shows one dot per rune and does not copy or cut, for passwords.
 input :: proc(
 	buf: ^[dynamic]byte,
 	el: Element = {},
 	placeholder: string = "",
+	secret := false,
 	loc := #caller_location,
 ) -> Interaction {
 	ctx := ctx_of(loc)
@@ -582,8 +632,9 @@ input :: proc(
 
 	op := Input_Ops {
 		ctx = ctx,
-		buf = buf,
-		st  = st,
+		buf    = buf,
+		st     = st,
+		secret = secret,
 	}
 
 	if live {
@@ -602,9 +653,10 @@ input :: proc(
 	st.caret = rune_align(s, st.caret)
 	st.anchor = rune_align(s, st.anchor)
 
-	cx := caret_x_st(ctx, style, s, st.caret)
+	shown := secret ? mask_text(ctx, s) : s
+	cx := caret_x_st(ctx, style, shown, to_shown(s, st.caret, secret))
 	if view_w > 0 {
-		total := measure_run(ctx, style, s)
+		total := measure_run(ctx, style, shown)
 		if cx - st.scroll_x < 0 {
 			st.scroll_x = cx
 		}
@@ -624,8 +676,8 @@ input :: proc(
 	}
 
 	lo, hi := sel_range(st)
-	sel_lo := caret_x_st(ctx, style, s, lo)
-	sel_hi := caret_x_st(ctx, style, s, hi)
+	sel_lo := caret_x_st(ctx, style, shown, to_shown(s, lo, secret))
+	sel_hi := caret_x_st(ctx, style, shown, to_shown(s, hi, secret))
 	empty := len(s) == 0
 
 	begin(
@@ -654,7 +706,7 @@ input :: proc(
 	leaf(
 		{
 			key = TXT_KEY,
-			text = empty ? placeholder : s,
+			text = empty ? placeholder : shown,
 			props = {
 				w = FIT,
 				h = FIT,
@@ -714,8 +766,8 @@ input_mouse :: proc(op: ^Input_Ops, it: Interaction, style: Text_Style, view_x: 
 	if it.double_clicked {
 		s := buf_text(op.buf)
 		at := hit_offset(op, style, view_x)
-		st.word_lo = word_left(s, rune_next(s, at))
-		st.word_hi = word_right(s, at)
+		st.word_lo = word_left_of(op, s, rune_next(s, at))
+		st.word_hi = word_right_of(op, s, at)
 		st.anchor = st.word_lo
 		st.caret = st.word_hi
 		st.word_drag = true
@@ -739,10 +791,10 @@ input_mouse :: proc(op: ^Input_Ops, it: Interaction, style: Text_Style, view_x: 
 	if st.word_drag {
 		if at < st.word_lo {
 			st.anchor = st.word_hi
-			st.caret = word_left(s, rune_next(s, at))
+			st.caret = word_left_of(op, s, rune_next(s, at))
 		} else {
 			st.anchor = st.word_lo
-			st.caret = word_right(s, at)
+			st.caret = word_right_of(op, s, at)
 		}
 	} else {
 		st.caret = at
@@ -761,13 +813,13 @@ input_keys :: proc(op: ^Input_Ops, style: Text_Style) {
 	if key_pressed(.Left) {
 		s := buf_text(op.buf)
 		lo, hi := sel_range(st)
-		to := ctrl ? word_left(s, st.caret) : (!shift && lo != hi ? lo : rune_prev(s, st.caret))
+		to := ctrl ? word_left_of(op, s, st.caret) : (!shift && lo != hi ? lo : rune_prev(s, st.caret))
 		move_caret(st, to, shift)
 	}
 	if key_pressed(.Right) {
 		s := buf_text(op.buf)
 		lo, hi := sel_range(st)
-		to := ctrl ? word_right(s, st.caret) : (!shift && lo != hi ? hi : rune_next(s, st.caret))
+		to := ctrl ? word_right_of(op, s, st.caret) : (!shift && lo != hi ? hi : rune_next(s, st.caret))
 		move_caret(st, to, shift)
 	}
 	if key_pressed(.Home) {
@@ -784,7 +836,7 @@ input_keys :: proc(op: ^Input_Ops, style: Text_Style) {
 		st.blink = 0
 	}
 
-	if ctrl && (key_pressed(.C) || key_pressed(.X)) {
+	if ctrl && !op.secret && (key_pressed(.C) || key_pressed(.X)) {
 		s := buf_text(op.buf)
 		lo, hi := sel_range(st)
 		if lo != hi {
@@ -817,7 +869,7 @@ input_keys :: proc(op: ^Input_Ops, style: Text_Style) {
 	if key_pressed(.Backspace) {
 		if !delete_selection(op, .Replace) {
 			s := buf_text(op.buf)
-			from := ctrl ? word_left(s, st.caret) : rune_prev(s, st.caret)
+			from := ctrl ? word_left_of(op, s, st.caret) : rune_prev(s, st.caret)
 			if from < st.caret {
 				splice(op, from, st.caret - from, "", .Delete_Back)
 			}
@@ -826,7 +878,7 @@ input_keys :: proc(op: ^Input_Ops, style: Text_Style) {
 	if key_pressed(.Delete) {
 		if !delete_selection(op, .Replace) {
 			s := buf_text(op.buf)
-			to := ctrl ? word_right(s, st.caret) : rune_next(s, st.caret)
+			to := ctrl ? word_right_of(op, s, st.caret) : rune_next(s, st.caret)
 			if to > st.caret {
 				splice(op, st.caret, to - st.caret, "", .Delete_Fwd)
 			}
